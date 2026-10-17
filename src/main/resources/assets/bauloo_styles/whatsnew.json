@@ -1,0 +1,18 @@
+{
+  "open": "sky",
+  "hero": {
+    "title": "Skies without Skyboxify",
+    "text": "Sky styles now work on their own. Drag the new time slider in the Sky tab to see your sky at any hour."
+  },
+  "items": [
+    ["NEW", "Shield, Mace, Cobwebs, Totem, Axe and Grass"],
+    ["NEW", "Stone, Deepslate, Snow and Inventory styles"],
+    ["NEW", "Time slider in the Sky tab"],
+    ["NEW", "Pick styles, then APPLY all at once"],
+    ["NEW", "Cobweb outline in its own color"],
+    ["NEW", "Share presets with one-time keys"],
+    ["NEW", "Gap size and a color bar for every color"],
+    ["FIX", "Long social names, My Packs rescans itself"],
+    ["GONE", "Shatter kill effect"]
+  ]
+}

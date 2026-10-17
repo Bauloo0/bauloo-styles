@@ -1,0 +1,40 @@
+{
+	"schemaVersion": 1,
+	"id": "bauloo_styles",
+	"version": "${version}",
+	"name": "Bauloo Styles",
+	"description": "Crystal, anchor, armor, tools, fire and sky styles in one menu, with extras and cosmetics. Keeps itself up to date (switch it off in Extras). Sky styles use Skyboxify.",
+	"authors": [
+		"bauloo"
+	],
+	"contact": {
+		"homepage": "https://discord.gg/bauloo",
+		"discord": "https://discord.gg/bauloo"
+	},
+	"license": "All Rights Reserved",
+	"icon": "assets/bauloo_styles/icon.png",
+	"environment": "client",
+	"mixins": ["bauloo_styles.mixins.json"],
+	"entrypoints": {
+		"preLaunch": [
+			"de.bauloo.styles.StylesUpdater"
+		],
+		"client": [
+			"de.bauloo.styles.BaulooStylesClient"
+		],
+		"modmenu": [
+			"de.bauloo.styles.BaulooStylesModMenu"
+		]
+	},
+	"depends": {
+		"fabricloader": ">=0.15.0",
+		"fabric-resource-loader-v0": "*",
+		"fabric-rendering-v1": "*",
+		"minecraft": ">=1.21.11",
+		"fabric-lifecycle-events-v1": "*"
+	},
+	"suggests": {
+		"modmenu": "*",
+		"skyboxify": "*"
+	}
+}

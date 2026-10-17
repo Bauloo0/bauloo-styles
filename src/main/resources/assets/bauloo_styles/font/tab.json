@@ -1,0 +1,11 @@
+{
+  "providers": [
+    {
+      "type": "bitmap",
+      "file": "bauloo_styles:font/tab_tornado.png",
+      "ascent": 7,
+      "height": 8,
+      "chars": [""]
+    }
+  ]
+}

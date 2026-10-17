@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "package": "de.bauloo.styles.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": ["PackScreenMixin", "PlayerOutlineMixin", "PlayerOutlineColorMixin", "ShieldOpacityMixin", "ShieldStatusOpacityMixin", "ShieldStatusNoPlayerMixin", "HeldTotemSizeMixin", "HandPreviewMixin", "HandPreviewBlockMixin", "CrystalSpinMixin", "CrystalAgeStateMixin", "CrystalChamsBobMixin", "TotemPopSizeMixin",
+    "AnchorAtlasMixin",
+    "SpriteContentsAccessor",
+    "ButtonPressAccessor",
+    "SpriteAnimatorAccessor",
+    "SpriteAnimatorTrackMixin",
+    "OutlinePreviewMixin", "OutlineWidthMixin", "BlockOutlineMixin", "SocialBadgeMixin", "KillEffectMixin", "ParticleManagerInvoker", "KillEffectHealthMixin", "KillEffectHitMixin", "KillEffectSilentMixin", "SpriteAtlasTextureAccessor", "GrassColorMixin", "BiomeGrassColorMixin", "CrystalSeeThroughMixin",
+    "HitboxColorMixin", "CustomHitboxesColorMixin", "CrosshairColorMixin", "CosmeticCapeMixin", "CapeSkinMixin", "ItemAnimationMixin", "BlockOutlineFirstMixin", "InventoryBackgroundMixin", "TabIconMixin", "NametagIconMixin", "ExplosionSoundMixin", "ExplosionParticleMixin", "CustomSkyMixin", "TimeChangerMixin"],
+  "injectors": {"defaultRequire": 1}
+}

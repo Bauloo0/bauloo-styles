@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bauloo Styles - Upload</title>
+<style>
+  :root {
+    --bg: #0a1017; --panel: #0d151f; --surface: #111b26; --surface2: #162433; --line: #1b2b3a;
+    --text: #f1f7ff; --soft: #b4c7d8; --dim: #71889d; --accent: #75d4ff; --good: #73e0b0; --bad: #ff7a7a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  [hidden] { display: none !important; }
+  body { background: var(--bg); color: var(--text); font: 15px/1.5 "Segoe UI", system-ui, sans-serif; min-height: 100vh; }
+  header { display: flex; align-items: center; gap: 12px; padding: 18px 28px; border-bottom: 1px solid var(--line); }
+  .logo { width: 16px; height: 16px; background: var(--accent); border-radius: 3px; position: relative; }
+  .logo::after { content: ""; position: absolute; inset: 4px; background: var(--bg); border-radius: 1px; }
+  header b { letter-spacing: .08em; font-size: 14px; }
+  header span { color: var(--dim); font-size: 14px; }
+  header .players { margin-left: auto; color: var(--soft); font-size: 13px; }
+  header .players i { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--good); margin-right: 6px; vertical-align: 1px; }
+  main { max-width: 860px; margin: 0 auto; padding: 28px 20px 60px; display: grid; gap: 16px; }
+  .card { background: var(--panel); border-radius: 12px; padding: 20px 22px; }
+  .card.off { opacity: .45; pointer-events: none; }
+  h2 { font-size: 13px; font-weight: 600; color: var(--dim); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 14px; }
+  h2 i { font-style: normal; color: var(--accent); margin-right: 8px; }
+
+  .cats { display: grid; gap: 14px; }
+  .group h3 { font-size: 12px; font-weight: 600; color: var(--dim); letter-spacing: .1em; text-transform: uppercase; margin: 0 0 7px 2px; }
+  .chips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .cat { position: relative; border: 0; border-radius: 10px; height: 70px; cursor: pointer; display: flex; align-items: center;
+         gap: 12px; padding: 7px 12px 7px 7px; background: var(--surface); color: var(--text); font: inherit; text-align: left;
+         transition: background .12s; }
+  .cat i { flex: none; width: 56px; height: 56px; border-radius: 8px; background: #0b0f15 center / 150% no-repeat; image-rendering: pixelated; }
+  .cat span { font-weight: 600; font-size: 15.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cat:hover { background: #1a2230; }
+  .cat em { position: absolute; right: 8px; top: 5px; z-index: 1; font-style: normal; font-size: 11px; color: var(--good);
+            background: rgba(10,16,23,.8); padding: 1px 7px; border-radius: 99px; display: none; }
+  .cat.has em { display: block; }
+  .cat:hover { outline: 1px solid var(--soft); }
+  .cat.on { outline: 2px solid var(--accent); background: #1a2230; }
+
+  .drop { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 130px;
+          border-radius: 10px; background: var(--surface); cursor: pointer; text-align: center; padding: 16px; transition: background .15s; }
+  .drop:hover, .drop.over { background: var(--surface2); }
+  .drop strong { font-weight: 600; }
+  .drop small { color: var(--dim); }
+  .drop input { display: none; }
+  .bar { height: 4px; border-radius: 99px; background: var(--surface2); margin-top: 12px; overflow: hidden; display: none; }
+  .bar div { height: 100%; width: 0; background: var(--accent); transition: width .1s; }
+  .note { margin-top: 12px; color: var(--soft); min-height: 1.5em; }
+  .note.bad { color: var(--bad); }
+  .note.good { color: var(--good); }
+  .note a { color: var(--accent); cursor: pointer; text-decoration: underline; }
+
+  .row { display: grid; grid-template-columns: 1fr 120px; gap: 14px; align-items: stretch; }
+  label.field span { display: block; color: var(--dim); font-size: 13px; margin-bottom: 6px; }
+  input[type=text], input[type=password] { width: 100%; background: var(--surface); border: 0; border-radius: 8px; padding: 11px 12px; color: var(--text); font: inherit; outline: none; }
+  input[type=text]:focus, input[type=password]:focus { box-shadow: inset 0 -2px 0 var(--accent); }
+  .pic { border-radius: 10px; background: var(--surface) center / cover; display: flex; align-items: center; justify-content: center;
+         color: var(--dim); font-size: 12px; text-align: center; cursor: pointer; aspect-ratio: 1; }
+  .pic:hover { background-color: var(--surface2); }
+  .pic.set { color: transparent; }
+  .pic input { display: none; }
+  .actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+  button.btn { border: 0; border-radius: 8px; padding: 11px 18px; font: inherit; font-weight: 600; cursor: pointer; }
+  .primary { background: var(--accent); color: #07111b; }
+  .primary:hover { filter: brightness(1.1); }
+  .ghost { background: var(--surface2); color: var(--soft); }
+  .ghost:hover { color: var(--text); }
+  button:disabled { opacity: .5; cursor: default; }
+
+  .list { display: grid; gap: 6px; }
+  .item { display: flex; align-items: center; gap: 12px; background: var(--surface); border-radius: 8px; padding: 9px 12px; }
+  .item b { font-weight: 500; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .item small { color: var(--dim); width: 70px; }
+  .item button { background: none; border: 0; color: var(--dim); cursor: pointer; font: inherit; }
+  .item button:hover { color: var(--bad); }
+  .empty { color: var(--dim); }
+  pre { margin-top: 10px; white-space: pre-wrap; color: var(--dim); font-size: 12px; }
+  @media (max-width: 640px) { .chips { grid-template-columns: repeat(2, 1fr); } .row { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header><div class="logo"></div><b>BAULOO</b><span>Style upload</span><span class="players" id="players"></span></header>
+<main>
+  <section class="card">
+    <h2><i>1</i>What do you want to add?</h2>
+    <div class="cats" id="cats"></div>
+  </section>
+
+  <section class="card off" id="step2">
+    <h2><i>2</i>Drop your texture pack</h2>
+    <label class="drop" id="drop">
+      <strong>Drop a .zip here</strong>
+      <small>or click to choose - only the part you picked is kept</small>
+      <input type="file" id="packInput" accept=".zip">
+    </label>
+    <div class="bar" id="bar"><div></div></div>
+    <div class="note" id="found"></div>
+  </section>
+
+  <section class="card off" id="step3">
+    <h2><i>3</i>Name</h2>
+    <div class="row" style="grid-template-columns: 1fr">
+      <label class="field"><span>Name in the menu</span><input type="text" id="name" maxlength="40"></label>
+      <!-- The picture is made automatically from the pack, so the picker stays hidden. -->
+      <label class="pic" id="pic" hidden>Picture<input type="file" id="picInput" accept="image/png,image/jpeg"></label>
+    </div>
+    <div class="actions">
+      <button class="btn primary" id="add">Add to my styles</button>
+      <button class="btn ghost" id="publish">Publish for everyone</button>
+    </div>
+    <div class="note" id="result"></div>
+    <pre id="output" hidden></pre>
+  </section>
+
+  <section class="card">
+    <h2>Your uploads</h2>
+    <div class="list" id="list"></div>
+  </section>
+
+  <section class="card" id="cloudCard" hidden>
+    <h2>Published for everyone</h2>
+    <div class="list" id="cloudList"></div>
+  </section>
+
+  <section class="card" id="keyCard">
+    <h2>Publish key</h2>
+    <p class="note" id="keyInfo" style="margin:0 0 12px"></p>
+    <div class="row" id="keyForm" style="grid-template-columns: 1fr auto">
+      <input type="password" id="keyInput" placeholder="Paste the key bauloo gave you" autocomplete="off" spellcheck="false">
+      <button class="btn ghost" id="keySave">Save key</button>
+    </div>
+    <div class="actions" id="keyOwned" hidden><button class="btn ghost" id="keyClear">Remove key from this PC</button></div>
+  </section>
+
+  <section class="card" id="githubCard" hidden>
+    <h2>GitHub (big packs)</h2>
+    <p class="note" id="githubInfo" style="margin:0 0 12px">With your GitHub token saved, this PC publishes straight to GitHub - up to 95 MB, like git. Paste it only here, never in a chat.</p>
+    <div class="row" id="githubForm" style="grid-template-columns: 1fr auto">
+      <input type="password" id="githubInput" placeholder="GitHub token (github_pat_...)" autocomplete="off" spellcheck="false">
+      <button class="btn ghost" id="githubSave">Save token</button>
+    </div>
+    <div class="actions" id="githubOwned" hidden><button class="btn ghost" id="githubClear">Remove GitHub token</button></div>
+  </section>
+
+  <section class="card" id="onlineCard" hidden>
+    <h2>Who plays</h2>
+    <p class="note" style="margin:0 0 12px">Only you see this. Everyone who ever played, online ones first.</p>
+    <div class="list" id="onlineList"></div>
+  </section>
+
+  <section class="card" id="adminCard" hidden>
+    <h2>Access keys</h2>
+    <p class="note" style="margin:0 0 12px">Give a key only to people you trust. They can publish for everyone until you revoke it. Upload keys show a blue tornado in tab, admin keys a red one - only you can hand out admin keys. VIP keys show a gold tornado, Media keys a pink one. Both unlock My Packs, but cannot publish.</p>
+    <div class="row" style="grid-template-columns: 1fr auto auto">
+      <input type="text" id="friendName" maxlength="24" placeholder="Friend's name">
+      <select id="keyRole" style="background:var(--surface);color:var(--text);border:1px solid var(--line, #333);border-radius:8px;padding:0 10px">
+        <option value="uploader">Upload key</option>
+        <option value="vip">VIP key</option>
+        <option value="media">Media key</option>
+        <option value="admin">Admin key</option>
+      </select>
+      <button class="btn primary" id="createKey">Create key</button>
+    </div>
+    <div class="note" id="newKey"></div>
+    <div class="list" id="keyList" style="margin-top:10px"></div>
+  </section>
+</main>
+<script>
+(() => {
+  const token = new URLSearchParams(location.search).get("t") || "";
+  const q = (path) => path + (path.includes("?") ? "&" : "?") + "t=" + encodeURIComponent(token);
+  const $ = (id) => document.getElementById(id);
+  const CATS = [
+    ["crystal", "Crystal", "crystal_evantii"], ["anchor", "Anchor", "anchor_kesumain"],
+    ["obsidian", "Obsidian", "category_obsidian"], ["glowstone", "Glowstone", "glowstone_kesumain"],
+    ["totem", "Totem", "category_totem"], ["gap", "Gap", "category_gap"], ["pearl", "Pearl", "category_pearl"],
+    ["armor", "Armor", "armor_kesu"], ["sword", "Sword", "sword_bauloo"], ["pickaxe", "Pickaxe", "pickaxe_bauloo"], ["axe", "Axe", "category_axe"],
+    ["stone", "Stone", "category_stone"], ["deepslate", "Deepslate", "category_deepslate"], ["snow", "Snow", "category_snow"],
+    ["fire", "Fire", "fire_32x"], ["sky", "Sky", "category_sky"], ["hotbar", "Hotbar", "category_hotbar"],
+    ["inventory", "Inventory", "inventory_doge"]
+  ];
+  // the page shows them in these groups; collections from the cloud say nothing, so they are placed here
+  const GROUPS = [
+    ["Crystal PvP", ["crystal", "anchor", "obsidian", "glowstone", "totem", "gap", "pearl"]],
+    ["Gear", ["armor", "sword", "pickaxe", "axe", "shield", "mace"]],
+    ["Blocks", ["stone", "deepslate", "snow", "cobweb"]],
+    ["World & HUD", ["fire", "sky", "hotbar", "inventory"]],
+  ];
+  const groupOf = (id) => (GROUPS.find(g => g[1].includes(id)) || ["More"])[0];
+  let category = null, upload = null, canPublish = false;
+
+  // step 1 (collections from the cloud index are added when the state arrives)
+  function chipsOf(group) {
+    let box = $("cats").querySelector(`.group[data-group="${group}"] .chips`);
+    if (box) return box;
+    const g = document.createElement("div");
+    g.className = "group"; g.dataset.group = group;
+    const h = document.createElement("h3"); h.textContent = group;
+    box = document.createElement("div"); box.className = "chips";
+    g.append(h, box);
+    // keep the groups in their order, "More" last
+    const order = GROUPS.map(x => x[0]).concat("More");
+    const after = [...$("cats").children].find(x => order.indexOf(x.dataset.group) > order.indexOf(group));
+    $("cats").insertBefore(g, after || null);
+    return box;
+  }
+  function addCat(id, label, img) {
+    if ($("cats").querySelector(`.cat[data-id="${id}"]`)) return;
+    const b = document.createElement("button");
+    b.className = "cat"; b.dataset.id = id;
+    const pic = document.createElement("i");
+    pic.style.backgroundImage = `url("${q("/img/" + img + ".png")}"), url("${q("/img/category_cloud.png")}")`;
+    const s = document.createElement("span"); s.textContent = label;
+    const e = document.createElement("em");
+    b.append(pic, s, e);
+    b.onclick = () => pick(id);
+    const box = chipsOf(groupOf(id));
+    // inside a group: the order of GROUPS, new ones at the end
+    const g = GROUPS.find(x => x[1].includes(id));
+    const next = g && [...box.children].find(x => g[1].indexOf(x.dataset.id) > g[1].indexOf(id));
+    box.insertBefore(b, next || null);
+  }
+  for (const [id, label, img] of CATS) addCat(id, label, img);
+  function pick(id) {
+    category = id;
+    document.querySelectorAll(".cat").forEach(c => c.classList.toggle("on", c.dataset.id === id));
+    $("step2").classList.remove("off");
+    if (upload) { showFound(); autoPicture(); }
+  }
+
+  // Picture the page picks by itself: the sky texture for skies, else the pack icon.
+  let customPicture = false;
+  function autoPicture() {
+    if (!upload || customPicture) return;
+    const p = $("pic");
+    const useAuto = (upload.auto || []).includes(category);
+    if (!useAuto && !upload.icon) { p.classList.remove("set"); p.style.backgroundImage = ""; p.title = ""; return; }
+    p.classList.add("set");
+    p.title = useAuto ? "Drawn from this pack" : "Taken from the pack icon";
+    p.style.backgroundImage = `url("${q("/api/icon?id=" + upload.id + "&category=" + category + "&v=" + Date.now())}")`;
+  }
+  const label = (id) => CATS.find(c => c[0] === id)[1];
+
+  // step 2
+  const drop = $("drop");
+  ["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+  drop.addEventListener("drop", e => { if (e.dataTransfer.files[0]) sendPack(e.dataTransfer.files[0]); });
+  $("packInput").onchange = e => { if (e.target.files[0]) sendPack(e.target.files[0]); };
+
+  function sendPack(file) {
+    if (!file.name.toLowerCase().endsWith(".zip")) { note("found", "Please drop a .zip texture pack.", "bad"); return; }
+    upload = null;
+    $("step3").classList.add("off");
+    note("found", "Reading " + file.name + " ...");
+    const bar = $("bar"); bar.style.display = "block"; bar.firstElementChild.style.width = "0";
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", q("/api/analyze?name=" + encodeURIComponent(file.name)));
+    xhr.upload.onprogress = e => { if (e.lengthComputable) bar.firstElementChild.style.width = (e.loaded / e.total * 100) + "%"; };
+    xhr.onload = () => {
+      bar.style.display = "none";
+      let r; try { r = JSON.parse(xhr.responseText); } catch { r = { ok: false, message: "Upload failed" }; }
+      if (!r.ok) { note("found", r.message, "bad"); return; }
+      upload = r;
+      document.querySelectorAll(".cat").forEach(c => {
+        const n = r.found[c.dataset.id] || 0;
+        c.classList.toggle("has", n > 0);
+        c.querySelector("em").textContent = n;
+      });
+      $("name").value = r.name;
+      resetPicture();
+      autoPicture();
+      showFound();
+    };
+    xhr.onerror = () => { bar.style.display = "none"; note("found", "Upload failed - is Minecraft still open?", "bad"); };
+    xhr.send(file);
+  }
+
+  function showFound() {
+    const n = upload.found[category] || 0;
+    const el = $("found");
+    if (n > 0) {
+      note("found", `Found ${n} ${label(category).toLowerCase()} texture${n === 1 ? "" : "s"}. Only these are kept.`, "good");
+      $("step3").classList.remove("off");
+      return;
+    }
+    $("step3").classList.add("off");
+    const others = CATS.filter(c => (upload.found[c[0]] || 0) > 0);
+    el.className = "note bad";
+    el.textContent = `This pack has no ${label(category).toLowerCase()} textures.`;
+    if (others.length) {
+      el.append(" It has: ");
+      others.forEach(([id, name], i) => {
+        const a = document.createElement("a");
+        a.textContent = `${name} (${upload.found[id]})`;
+        a.onclick = () => pick(id);
+        el.append(a, i < others.length - 1 ? ", " : "");
+      });
+    }
+  }
+
+  // step 3
+  function resetPicture() { customPicture = false; const p = $("pic"); p.classList.remove("set"); p.style.backgroundImage = ""; $("picInput").value = ""; }
+  $("picInput").onchange = e => {
+    const file = e.target.files[0];
+    if (!file || !upload) return;
+    fetch(q("/api/preview?id=" + upload.id), { method: "POST", body: file })
+      .then(r => r.json()).then(r => {
+        if (!r.ok) { note("result", r.message, "bad"); return; }
+        customPicture = true;
+        const p = $("pic"); p.classList.add("set"); p.title = ""; p.style.backgroundImage = `url("${URL.createObjectURL(file)}")`;
+      });
+  };
+
+  function submit(publish) {
+    const name = $("name").value.trim();
+    if (!name) { note("result", "Give the style a name.", "bad"); return; }
+    const btn = publish ? $("publish") : $("add");
+    btn.disabled = true;
+    note("result", publish ? "Publishing for everyone ..." : "Adding ...");
+    $("output").hidden = true;
+    fetch(q(publish ? "/api/publish" : "/api/add"), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: upload.id, category, name })
+    }).then(r => r.json()).then(r => {
+      btn.disabled = false;
+      note("result", r.ok ? r.message + (publish ? "" : " - open the styles menu in game.") : r.message, r.ok ? "good" : "bad");
+      if (r.output) { $("output").textContent = r.output; $("output").hidden = false; }
+      loadState();
+    }).catch(() => { btn.disabled = false; note("result", "Something went wrong - is Minecraft still open?", "bad"); });
+  }
+  $("add").onclick = () => submit(false);
+  $("publish").onclick = () => {
+    if (canPublish) { submit(true); return; }
+    // Everyone sees the button; only bauloo's PC can actually publish.
+    const el = $("result");
+    el.className = "note";
+    el.textContent = "Publishing for everyone is limited. Open a support ticket in ";
+    const a = document.createElement("a");
+    a.href = "https://discord.gg/bauloo"; a.target = "_blank"; a.rel = "noopener noreferrer";
+    a.textContent = "discord.gg/bauloo";
+    el.append(a, " and ask for access. Got a key? ");
+    const have = document.createElement("a");
+    have.textContent = "Enter it here";
+    have.onclick = () => { $("keyCard").hidden = false; $("keyInput").focus(); $("keyCard").scrollIntoView({ behavior: "smooth" }); };
+    el.append(have, ".");
+    $("output").hidden = true;
+  };
+
+  // publish key (friends) and access keys (bauloo)
+  const post = (path, body) => fetch(q(path), { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {}) }).then(r => r.json());
+  $("keySave").onclick = () => {
+    const key = $("keyInput").value.trim();
+    if (!key) return;
+    $("keySave").disabled = true;
+    post("/api/key", { key }).then(r => {
+      $("keySave").disabled = false;
+      $("keyInput").value = "";
+      note("keyInfo", r.message, r.ok ? "good" : "bad");
+      loadState();
+    });
+  };
+  $("keyClear").onclick = () => post("/api/key/clear").then(r => { note("keyInfo", r.message); loadState(); });
+  $("githubSave").onclick = () => {
+    const gh = $("githubInput").value.trim();
+    if (!gh) return;
+    $("githubSave").disabled = true;
+    post("/api/github", { token: gh }).then(r => {
+      $("githubSave").disabled = false;
+      $("githubInput").value = "";
+      note("githubInfo", r.message, r.ok ? "good" : "bad");
+      loadState();
+    });
+  };
+  $("githubClear").onclick = () => post("/api/github/clear").then(r => { note("githubInfo", r.message); loadState(); });
+  $("createKey").onclick = () => {
+    const name = $("friendName").value.trim();
+    if (!name) return;
+    post("/api/keys/create", { name, role: $("keyRole").value }).then(r => {
+      const el = $("newKey");
+      if (!r.ok) { note("newKey", r.message, "bad"); return; }
+      el.className = "note good";
+      el.textContent = `${r.role === "admin" ? "Admin" : r.role === "vip" ? "VIP" : r.role === "media" ? "Media" : "Upload"} key for ${r.name} - copy it now, it is shown only once: `;
+      const code = document.createElement("code");
+      code.textContent = r.key;
+      code.style.cssText = "user-select:all;background:var(--surface);padding:2px 6px;border-radius:4px;color:var(--text)";
+      const copy = document.createElement("a");
+      copy.textContent = " copy";
+      copy.onclick = () => navigator.clipboard.writeText(r.key).then(() => copy.textContent = " copied");
+      el.append(code, copy);
+      $("friendName").value = "";
+      loadKeys();
+    });
+  };
+  function loadCloud() {
+    post("/api/cloud/list").then(r => {
+      const list = $("cloudList"); list.textContent = "";
+      const empty = (text) => { const p = document.createElement("div"); p.className = "empty"; p.textContent = text; list.append(p); };
+      if (!r.ok) { empty(r.message); return; }
+      if (!r.styles.length) { empty("Nothing published yet."); return; }
+      for (const st of r.styles) {
+        const row = document.createElement("div"); row.className = "item";
+        const cat = document.createElement("small"); cat.textContent = label(st.category) || st.category;
+        const name = document.createElement("b"); name.textContent = st.name;
+        const by = document.createElement("small"); by.style.width = "auto"; by.textContent = "by " + st.by;
+        row.append(cat, name, by);
+        if (st.canRemove) {
+          const del = document.createElement("button"); del.textContent = "Remove";
+          del.onclick = () => {
+            if (!confirm(`Remove "${st.name}" for everyone?`)) return;
+            del.disabled = true; del.textContent = "Removing...";
+            post("/api/cloud/remove", { id: st.id }).then(res => {
+              if (!res.ok) { alert(res.message); }
+              loadCloud();
+            });
+          };
+          row.append(del);
+        }
+        list.append(row);
+      }
+    }).catch(() => {});
+  }
+
+  function loadOnline() {
+    post("/api/online").then(r => {
+      const list = $("onlineList"); list.textContent = "";
+      if (!r.ok) { const p = document.createElement("div"); p.className = "empty"; p.textContent = r.message; list.append(p); return; }
+      if (!r.players.length) { const p = document.createElement("div"); p.className = "empty"; p.textContent = "Nobody yet."; list.append(p); return; }
+      for (const pl of r.players) {
+        const row = document.createElement("div"); row.className = "item";
+        const when = document.createElement("small"); when.style.width = "120px";
+        when.textContent = pl.online ? "online now" : (pl.ago < 3600 ? Math.round(pl.ago / 60) + " min ago" : pl.ago < 172800 ? Math.round(pl.ago / 3600) + " h ago" : Math.round(pl.ago / 86400) + " days ago");
+        if (pl.online) when.style.color = "var(--accent)";
+        const name = document.createElement("b"); name.textContent = pl.name;
+        row.append(when, name);
+        list.append(row);
+      }
+    }).catch(() => {});
+  }
+
+  function loadKeys() {
+    post("/api/keys/list").then(r => {
+      const list = $("keyList"); list.textContent = "";
+      if (!r.ok) { const p = document.createElement("div"); p.className = "empty"; p.textContent = r.message; list.append(p); return; }
+      if (!r.keys.length) { const p = document.createElement("div"); p.className = "empty"; p.textContent = "No keys handed out."; list.append(p); return; }
+      for (const k of r.keys) {
+        const row = document.createElement("div"); row.className = "item";
+        const date = document.createElement("small");
+        date.style.width = "120px";
+        date.textContent = k.redeemed ? "redeemed " + k.redeemed : "not redeemed";
+        const name = document.createElement("b"); name.textContent = k.name;
+        const role = document.createElement("small");
+        role.textContent = k.role === "admin" ? "ADMIN" : k.role === "vip" ? "VIP" : k.role === "media" ? "MEDIA" : "UPLOAD";
+        role.style.cssText = "margin-left:8px;font-weight:600;color:" + (k.role === "admin" ? "#ff5555" : k.role === "vip" ? "#ffc23d" : k.role === "media" ? "#ff6fd8" : "#4db8ff");
+        name.append(role);
+        const del = document.createElement("button"); del.textContent = "Revoke";
+        del.onclick = () => { if (confirm(`Revoke the key of ${k.name}?`)) post("/api/keys/revoke", { name: k.name }).then(loadKeys); };
+        row.append(date, name, del);
+        list.append(row);
+      }
+    });
+  }
+
+  // uploads list
+  function loadState() {
+    fetch(q("/api/state")).then(r => r.json()).then(s => {
+      if (/^#[0-9A-F]{6}$/i.test(s.accent)) document.documentElement.style.setProperty("--accent", s.accent);
+      canPublish = !!s.canPublish;
+      for (const c of s.categories || []) {
+        if (!CATS.find(x => x[0] === c.id)) CATS.push([c.id, c.name, "category_" + c.id]);
+        addCat(c.id, c.name, "category_" + c.id);
+      }
+      // Key card: always visible, so friends find where to paste the key bauloo gave them.
+      const hasKey = !!s.role;
+      $("keyForm").hidden = hasKey;
+      $("keyOwned").hidden = !hasKey;
+      if (hasKey) note("keyInfo", s.role === "vip" || s.role === "media" ? `${s.role === "vip" ? "VIP" : "Media"} key of ${s.who}: ${s.role === "vip" ? "gold" : "pink"} tornado and My Packs. Publishing for everyone needs an upload key.` : `Publishing as ${s.who}${s.role === "admin" ? " (admin)" : ""}.`, "good");
+      else if (s.git) note("keyInfo", "This PC publishes straight to GitHub. Enter your admin key to hand out keys to friends.");
+      else if (!s.online) note("keyInfo", "Online publishing is not set up yet.");
+      const showCloud = hasKey || s.git;
+      if (showCloud && $("cloudCard").hidden) loadCloud();
+      $("cloudCard").hidden = !showCloud;
+      const admin = s.role === "admin";
+      if (admin && $("adminCard").hidden) { loadKeys(); loadOnline(); }
+      $("adminCard").hidden = !admin;
+      $("onlineCard").hidden = !admin;
+      // GitHub card: only for bauloo (admin key) or when a GitHub token is already saved
+      $("githubCard").hidden = !(admin || s.git);
+      $("githubForm").hidden = !!s.git;
+      $("githubOwned").hidden = !s.git;
+      const list = $("list"); list.textContent = "";
+      if (!s.uploads.length) { const p = document.createElement("div"); p.className = "empty"; p.textContent = "Nothing uploaded yet."; list.append(p); return; }
+      for (const u of s.uploads) {
+        const row = document.createElement("div"); row.className = "item";
+        const cat = document.createElement("small"); cat.textContent = label(u.category);
+        const name = document.createElement("b"); name.textContent = u.name;
+        const del = document.createElement("button"); del.textContent = "Remove";
+        del.onclick = () => {
+          if (!confirm(`Remove "${u.name}"?`)) return;
+          fetch(q("/api/delete"), { method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ category: u.category, file: u.file }) }).then(loadState);
+        };
+        row.append(cat, name, del);
+        list.append(row);
+      }
+    }).catch(() => {});
+  }
+  function note(id, text, kind) { const el = $(id); el.className = "note" + (kind ? " " + kind : ""); el.textContent = text; }
+  // how many people play with the mod (count from the publish server)
+  function loadPlayers() {
+    fetch(q("/api/stats"), { method: "POST" }).then(r => r.json()).then(s => {
+      if (!s || s.online === undefined) return;
+      const el = $("players"); el.textContent = "";
+      const dot = document.createElement("i"); el.append(dot,
+        `${s.online} playing now · ${s.today} today · ${s.total} total`);
+    }).catch(() => {});
+  }
+  loadPlayers();
+  setInterval(loadPlayers, 60000);
+  setInterval(() => { if (!$("onlineCard").hidden) loadOnline(); }, 60000);
+  loadState();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+Bauloo Styles
+Copyright (c) 2026 bauloo. All rights reserved.
+
+You may download Bauloo Styles from https://baulooprac.xyz and use it to play Minecraft.
+
+Without written permission from bauloo, you may not:
+- copy, re-upload or share the mod file anywhere else (other websites, Modrinth, CurseForge, Discord servers, file hosts),
+- change, rename or rebrand the mod, or publish a changed version of it,
+- take its code, menu design, textures, sounds, capes or other assets for your own projects,
+- sell the mod or any part of it.
+
+To share Bauloo Styles, send people the link https://baulooprac.xyz.
+
+Styles that come from texture packs belong to the people who made those packs.
+Third-party parts keep their own licenses: the Poppins font is under the SIL Open Font License
+(see assets/bauloo_styles/font/poppins_license.txt).
+
+The mod is provided as is, without any warranty.
+
+Questions or permission requests: discord.gg/bauloo
