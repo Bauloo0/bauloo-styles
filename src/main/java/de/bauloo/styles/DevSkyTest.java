@@ -25,6 +25,8 @@ final class DevSkyTest {
     private static float pitch = -30.0F;
     /** "crystal": an end crystal right in front of the player, to see which texture it gets */
     private static boolean crystal;
+    /** "outline": your own player from behind with Player Outline on, at two thicknesses */
+    private static boolean outline;
 
     static void start(java.io.File file) {
         try {
@@ -33,6 +35,10 @@ final class DevSkyTest {
                 pitch = 35.0F;
             }
             crystal = mode.contains("crystal");
+            outline = mode.contains("outline");
+            if (outline) {
+                pitch = 15.0F;
+            }
             if (crystal) {
                 pitch = 10.0F;
             }
@@ -98,10 +104,49 @@ final class DevSkyTest {
                     }
                 });
             }
+            if (outline && t[0] - t[1] == 10 && c.getServer() != null) {
+                // a free platform high up, so the camera behind the player has room
+                java.util.UUID id = c.player.getUuid();
+                net.minecraft.util.math.BlockPos base = c.player.getBlockPos().up(40);
+                c.getServer().execute(() -> {
+                    var w = c.getServer().getOverworld();
+                    for (int dx = -5; dx <= 5; dx++) {
+                        for (int dz = -5; dz <= 5; dz++) {
+                            w.setBlockState(base.add(dx, 0, dz), net.minecraft.block.Blocks.SMOOTH_STONE.getDefaultState());
+                        }
+                    }
+                    var p = c.getServer().getPlayerManager().getPlayer(id);
+                    if (p != null) {
+                        p.requestTeleport(base.getX() + 0.5, base.getY() + 1, base.getZ() + 0.5);
+                    }
+                });
+            }
+            if (outline && t[0] - t[1] == 20) {
+                c.options.setPerspective(net.minecraft.client.option.Perspective.THIRD_PERSON_BACK);
+                StylesUiConfig.outline = true;
+                StylesUiConfig.outlineSelf = true;
+                StylesUiConfig.outlineRainbow = false;
+                StylesUiConfig.outlineColor = 0xFF5AC8;
+                StylesUiConfig.outlineWidth = 2;
+            }
             c.player.setPitch(pitch);
             c.player.setYaw(-90.0F);
             int s = t[0] - t[1] - WAIT;
             if (s < 0) {
+                return;
+            }
+            if (outline) {
+                if (s == 40 || s == 120) {
+                    BaulooStylesClient.LOGGER.info("[SkyTest] outline screenshot, width {}", StylesUiConfig.outlineWidth);
+                    net.minecraft.client.util.ScreenshotRecorder.saveScreenshot(c.runDirectory, c.getFramebuffer(), message -> {
+                    });
+                } else if (s == 80) {
+                    StylesUiConfig.outlineWidth = 5;
+                    StylesUiConfig.outlineColor = 0x75D4FF;
+                } else if (s > 160) {
+                    BaulooStylesClient.LOGGER.info("[SkyTest] done");
+                    c.scheduleStop();
+                }
                 return;
             }
             int i = s / STEP;

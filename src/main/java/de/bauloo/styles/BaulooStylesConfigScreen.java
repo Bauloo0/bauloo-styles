@@ -116,7 +116,7 @@ public class BaulooStylesConfigScreen extends Screen {
     private long shareConfirmUntil;
     /** a preset with Extras waiting for WITH EXTRAS / STYLES ONLY */
     private StylesPresets.Preset pendingPreset;
-    /** a newer version while auto update is off: asked once when the menu opens */
+    /** a newer version is out: asked once per version when the menu opens */
     private String updateAsk;
     private WhatsNew.Notes whatsNew;
     private boolean whatsNewChecked;
@@ -1197,7 +1197,7 @@ public class BaulooStylesConfigScreen extends Screen {
         }
         if (updateAsk == null && whatsNew == null) {
             String v = StylesUpdater.availableVersion;
-            if (v != null && (!StylesUiConfig.autoUpdate || !StylesUpdateLauncher.AVAILABLE) && !v.equals(StylesUiConfig.updateSeen)) {
+            if (v != null && !v.equals(StylesUiConfig.updateSeen)) {
                 updateAsk = v;
             }
         }
@@ -2490,7 +2490,6 @@ public class BaulooStylesConfigScreen extends Screen {
         list.add(new ExtraTile("SOCIAL", "Social Badge", "HUD & Menu", Items.NAME_TAG, "Logo on the recipe book button"));
         list.add(new ExtraTile("TABICON", "Tab Icon", "HUD & Menu", Items.WRITABLE_BOOK, "Tornado next to your name"));
         list.add(new ExtraTile("MENU", "Menu", "HUD & Menu", Items.COMPARATOR, "Apply instantly or all at once"));
-        list.add(new ExtraTile("UPDATES", "Updates", "HUD & Menu", Items.CLOCK, "Auto update"));
         return list;
     }
 
@@ -2509,7 +2508,6 @@ public class BaulooStylesConfigScreen extends Screen {
             case "SPOTIFY" -> StylesUiConfig.spotifyHud;
             case "TABICON" -> StylesUiConfig.showInTab;
             case "MENU" -> StylesUiConfig.applyInstantly;
-            case "UPDATES" -> StylesUpdateLauncher.AVAILABLE ? StylesUiConfig.autoUpdate : null;
             default -> null;
         };
     }
@@ -2534,12 +2532,6 @@ public class BaulooStylesConfigScreen extends Screen {
                 StylesUiConfig.applyInstantly = !StylesUiConfig.applyInstantly;
                 PENDING.clear();
             }
-            case "UPDATES" -> {
-                StylesUiConfig.autoUpdate = !StylesUiConfig.autoUpdate;
-                if (StylesUiConfig.autoUpdate) {
-                    StylesUpdater.downloadNow();
-                }
-            }
             default -> {
                 return;
             }
@@ -2559,7 +2551,6 @@ public class BaulooStylesConfigScreen extends Screen {
             case "SHIELD" -> StylesUiConfig.shieldOpacity >= 100 ? "Normal" : StylesUiConfig.shieldOpacity + "%";
             case "GAP" -> percent(StylesUiConfig.gapSize);
             case "SOCIAL" -> Watermark.validSocial(StylesUiConfig.socialLogo) ? "On" : "Off";
-            case "UPDATES" -> "Manual";
             case "KILL" -> {
                 for (String[] effect : KillEffect.EFFECTS) {
                     if (effect[0].equals(StylesUiConfig.killEffect)) {
@@ -2698,7 +2689,7 @@ public class BaulooStylesConfigScreen extends Screen {
             hit(sx - 3, sy - 3, swW + 6, swH + 6, (b, px, py) -> toggleExtra(key));
         } else {
             String value = extraValue(key);
-            boolean changed = !value.equals("Normal") && !value.equals("Off") && !value.equals("Manual");
+            boolean changed = !value.equals("Normal") && !value.equals("Off");
             int vw = scaledWidth(value, 0.75F) + 8;
             int vx = tx + tw - vw - 6;
             int vy = ty + th - 14;
@@ -2965,7 +2956,7 @@ public class BaulooStylesConfigScreen extends Screen {
 
         }
         if (want("SPOTIFY")) {
-            // ---- Spotify (not in the download without the auto updater)
+            // ---- Spotify (not in the clean download)
             if (SpotifyNowPlaying.AVAILABLE) {
                 y = sectionHeader(ctx, px, y, pw, "SPOTIFY");
                 y = switchRow(ctx, px, y, pw, "Show what's playing", StylesUiConfig.spotifyHud, mx, my,
@@ -3001,28 +2992,6 @@ public class BaulooStylesConfigScreen extends Screen {
                             : "Clicks select styles, APPLY loads them all at once", Math.round(pw / 0.8F)),
                     px, y - 4, c.textDim, 0.8F, false);
             y += 10;
-
-        }
-        if (want("UPDATES")) {
-            // ---- Updates
-            y = sectionHeader(ctx, px, y, pw, "UPDATES");
-            if (!StylesUpdateLauncher.AVAILABLE) {
-                scaled(ctx, fitText("This download does not update itself.", Math.round(pw / 0.8F)), px, y, c.textSoft, 0.8F, false);
-                scaled(ctx, fitText("New versions show a popup here - get them from the website.", Math.round(pw / 0.8F)),
-                        px, y + 10, c.textDim, 0.8F, false);
-                y += 26;
-            } else {
-            y = switchRow(ctx, px, y, pw, "Auto update", StylesUiConfig.autoUpdate, mx, my,
-                    () -> {
-                        StylesUiConfig.autoUpdate = !StylesUiConfig.autoUpdate;
-                        if (StylesUiConfig.autoUpdate) {
-                            StylesUpdater.downloadNow();
-                        }
-                    });
-            scaled(ctx, fitText("New versions download on start and are used from the next start", Math.round(pw / 0.8F)),
-                    px, y - 4, c.textDim, 0.8F, false);
-            y += 10;
-            }
 
         }
         if (want("SOCIAL")) {
@@ -4687,7 +4656,7 @@ public class BaulooStylesConfigScreen extends Screen {
         }
     }
 
-    /** New version while auto update is off: turn it on, open the website, or ask again next version. */
+    /** A newer version is out: download it from the website, or ask again next version. */
     private void drawUpdateAsk(DrawContext ctx, int mx, int my) {
         hits.clear();
         tooltip = null;
@@ -4705,11 +4674,8 @@ public class BaulooStylesConfigScreen extends Screen {
         String have = (StylesUpdater.installedVersion == null ? "?" : StylesUpdater.installedVersion) + "  ->  ";
         text(ctx, have, x + 38, y + 23, c.textDim);
         text(ctx, updateAsk, x + 38 + textWidth(have), y + 23, c.accent);
-        boolean canAuto = StylesUpdateLauncher.AVAILABLE;
-        text(ctx, fitText(canAuto ? "Auto update is off, so you still have the old one."
-                : "This download does not update itself.", w - 24), x + 12, y + 44, c.textSoft);
-        text(ctx, fitText(canAuto ? "Turn it on and it installs itself on the next start."
-                : "Get the new version from the website.", w - 24), x + 12, y + 56, c.textSoft);
+        text(ctx, fitText("Get it from the website and put it into", w - 24), x + 12, y + 44, c.textSoft);
+        text(ctx, fitText("your mods folder instead of the old one.", w - 24), x + 12, y + 56, c.textSoft);
         if (!notes.isEmpty()) {
             // what the new version brings, from version.json - so the popup always shows the newest notes
             soft(ctx, x + 10, y + 68, w - 20, notesH - 4, c.base);
@@ -4726,11 +4692,10 @@ public class BaulooStylesConfigScreen extends Screen {
         }
         int inner = w - 24;
         int small = (inner - 8) / 4;
-        int big = inner - 8 - small * 2;
         int by = y + 80 + notesH;
-        int[] bw = canAuto ? new int[] {big, small, small} : new int[] {inner - 4 - small, small};
-        String[] labels = canAuto ? new String[] {"TURN ON AUTO UPDATE", "WEBSITE", "LATER"} : new String[] {"WEBSITE", "LATER"};
-        int[] choices = canAuto ? new int[] {0, 1, 2} : new int[] {1, 2};
+        int[] bw = {inner - 4 - small, small};
+        String[] labels = {"DOWNLOAD", "LATER"};
+        int[] choices = {1, 2};
         int bx = x + 12;
         for (int i = 0; i < labels.length; i++) {
             boolean hover = inside(mx, my, bx, by, bw[i], 20);
@@ -4913,10 +4878,6 @@ public class BaulooStylesConfigScreen extends Screen {
         String version = updateAsk;
         updateAsk = null;
         StylesUiConfig.updateSeen = version;
-        if (choice == 0) {
-            StylesUiConfig.autoUpdate = true;
-            StylesUpdater.downloadNow();
-        }
         StylesUiConfig.save();
         if (choice == 1 && client != null) {
             net.minecraft.client.gui.screen.ConfirmLinkScreen.open(this, "https://baulooprac.xyz", true);
@@ -5230,7 +5191,7 @@ public class BaulooStylesConfigScreen extends Screen {
                     StylesUiConfig.save();
                 });
                 if (eaHover) {
-                    tooltip = on ? "Dev builds come first (VIP) - click to turn off" : "Click to get dev builds first (VIP)";
+                    tooltip = on ? "Early styles show (VIP) - click to turn off" : "Click to see early styles (VIP)";
                     tooltipX = mx + 8;
                     tooltipY = my - 14;
                 }
@@ -5272,18 +5233,6 @@ public class BaulooStylesConfigScreen extends Screen {
                 break;
             }
             shown--;
-        }
-        String ready = StylesUpdater.readyVersion;
-        if (ready != null && !ready.equals(StylesUpdater.installedVersion)) {
-            // auto update downloaded a new version: one restart puts it in
-            String note = ready + " is ready - restart the game to install it";
-            int nw = textWidth(note) + 16;
-            if (nw <= right - left) {
-                int nx = left + (right - left - nw) / 2;
-                soft(ctx, nx, by, nw, 16, 0xFF2A2310);
-                text(ctx, note, nx + 8, by + 4, 0xFFFFC23D);
-                return;
-            }
         }
         if (shown > 0) {
             textCenter(ctx, line, left, right - left, by + 4, c.textDim);

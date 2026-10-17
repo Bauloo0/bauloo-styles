@@ -5,7 +5,7 @@ import net.minecraft.entity.Entity;
 import net.minecraft.entity.player.PlayerEntity;
 
 /**
- * Player Outline: the soft glow outline around players, in your own colour.
+ * Player Outline: a neon glow around players, in your own colour.
  * Other players only get it while you can actually see them, so it never
  * shows anyone through walls. Invisible players with armor get it around the armor. Settings live in StylesUiConfig.
  */
@@ -99,13 +99,17 @@ public final class PlayerOutline {
         return EDGE + hsv[0] * (1.0F - 2 * EDGE);
     }
 
-    /** The glow post effect for the chosen thickness; 2 keeps the vanilla one. */
+    /**
+     * The "Neon Glow" post effect for the chosen thickness (a soft halo outside the player plus a
+     * thin bright edge); with Player Outline off the vanilla glow stays.
+     */
     public static net.minecraft.util.Identifier postEffect(net.minecraft.util.Identifier vanilla) {
-        int width = StylesUiConfig.outlineWidth;
-        if (width == 2 || width < 1 || width > 6) {
+        StylesUiConfig.load();
+        if (!StylesUiConfig.outline && !previewSelf) {
             return vanilla;
         }
-        return net.minecraft.util.Identifier.of(BaulooStylesClient.MOD_ID, "entity_outline_" + width);
+        int width = Math.max(1, Math.min(6, StylesUiConfig.outlineWidth));
+        return net.minecraft.util.Identifier.of(BaulooStylesClient.MOD_ID, "neon_" + width);
     }
 
     /** Outline colour as 0xRRGGBB. */

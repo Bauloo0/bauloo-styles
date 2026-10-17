@@ -17,7 +17,7 @@ import java.util.Map;
  */
 public final class SpotifyNowPlaying {
 
-    /** false in the download without the auto updater: that one has no Spotify card (no JNA). */
+    /** false in the clean download: that one has no Spotify card (no JNA). */
     public static final boolean AVAILABLE = true;
 
     /** null while nothing plays */

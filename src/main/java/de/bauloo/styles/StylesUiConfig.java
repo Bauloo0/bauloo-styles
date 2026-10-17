@@ -126,9 +126,7 @@ public final class StylesUiConfig {
     public static int fireColor = 0x75D4FF;
     /** Custom Fog: no fog, fog distance in percent (100 = normal), own fog colour */
     public static boolean fogOff = false;
-    /** Auto update: check for a new Bauloo Styles on start, install it on the next start */
-    public static boolean autoUpdate = StylesUpdater.defaultOn();
-    /** VIP early access: the updater also takes dev builds from bauloo's worker */
+    /** VIP early access: early styles and collections from the cloud show */
     public static boolean earlyAccess = true;
     /** Inventory tab: inventory and chests open without the dark veil and blur behind them */
     public static boolean invClearBackground = false;
@@ -179,7 +177,7 @@ public final class StylesUiConfig {
      */
     private static final Set<String> MENU_KEYS = Set.of("accent", "background", "opacity", "glow", "brackets",
             "hints", "themesTab", "favorites", "presetExtras", "presetBackup",
-            "spotifyX", "spotifyY", "spotifyScale", "autoUpdate", "earlyAccess", "timeOverride", "updateSeen", "lastVersion", "invClearBackground", "showInTab",
+            "spotifyX", "spotifyY", "spotifyScale", "earlyAccess", "timeOverride", "updateSeen", "lastVersion", "invClearBackground", "showInTab",
             "cosCape", "cosHead", "cosAura", "cosColor", "cosRainbow", "cosCapeElytra", "cosCapeTint",
             // how big the totem pops is your own feel: most presets only carry the default 100
             "totemPopSize");
@@ -432,7 +430,6 @@ public final class StylesUiConfig {
         }
         fireCustom = Boolean.parseBoolean(p.getProperty("fireCustom", "false"));
         fogOff = Boolean.parseBoolean(p.getProperty("fogOff", "false"));
-        autoUpdate = Boolean.parseBoolean(p.getProperty("autoUpdate", String.valueOf(StylesUpdater.defaultOn())));
         earlyAccess = Boolean.parseBoolean(p.getProperty("earlyAccess", "true"));
         updateSeen = p.getProperty("updateSeen", "");
         lastVersion = p.getProperty("lastVersion", "");
@@ -678,7 +675,6 @@ public final class StylesUiConfig {
         p.setProperty("spotifyScale", String.valueOf(spotifyScale));
         p.setProperty("fireCustom", String.valueOf(fireCustom));
         p.setProperty("fogOff", String.valueOf(fogOff));
-        p.setProperty("autoUpdate", String.valueOf(autoUpdate));
         p.setProperty("earlyAccess", String.valueOf(earlyAccess));
         p.setProperty("updateSeen", updateSeen);
         p.setProperty("lastVersion", lastVersion);

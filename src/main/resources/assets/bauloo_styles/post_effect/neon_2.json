@@ -1,0 +1,124 @@
+{
+    "targets": {
+        "sil": {},
+        "edge": {},
+        "glow_h": {},
+        "glow": {}
+    },
+    "passes": [
+        {
+            "vertex_shader": "minecraft:core/screenquad",
+            "fragment_shader": "minecraft:post/blit",
+            "inputs": [
+                {
+                    "sampler_name": "In",
+                    "target": "minecraft:entity_outline"
+                }
+            ],
+            "output": "sil",
+            "uniforms": {
+                "BlitConfig": [
+                    {
+                        "name": "ColorModulate",
+                        "type": "vec4",
+                        "value": [
+                            1.0,
+                            1.0,
+                            1.0,
+                            1.0
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "vertex_shader": "minecraft:core/screenquad",
+            "fragment_shader": "minecraft:post/entity_sobel",
+            "inputs": [
+                {
+                    "sampler_name": "In",
+                    "target": "minecraft:entity_outline"
+                }
+            ],
+            "output": "edge"
+        },
+        {
+            "vertex_shader": "minecraft:core/screenquad",
+            "fragment_shader": "bauloo_styles:post/neon_blur",
+            "inputs": [
+                {
+                    "sampler_name": "In",
+                    "target": "sil",
+                    "bilinear": true
+                }
+            ],
+            "output": "glow_h",
+            "uniforms": {
+                "BlurConfig": [
+                    {
+                        "name": "BlurDir",
+                        "type": "vec2",
+                        "value": [
+                            1.0,
+                            0.0
+                        ]
+                    },
+                    {
+                        "name": "Radius",
+                        "type": "float",
+                        "value": 9.0
+                    }
+                ]
+            }
+        },
+        {
+            "vertex_shader": "minecraft:core/screenquad",
+            "fragment_shader": "bauloo_styles:post/neon_blur",
+            "inputs": [
+                {
+                    "sampler_name": "In",
+                    "target": "glow_h",
+                    "bilinear": true
+                }
+            ],
+            "output": "glow",
+            "uniforms": {
+                "BlurConfig": [
+                    {
+                        "name": "BlurDir",
+                        "type": "vec2",
+                        "value": [
+                            0.0,
+                            1.0
+                        ]
+                    },
+                    {
+                        "name": "Radius",
+                        "type": "float",
+                        "value": 9.0
+                    }
+                ]
+            }
+        },
+        {
+            "vertex_shader": "minecraft:core/screenquad",
+            "fragment_shader": "bauloo_styles:post/neon_combine",
+            "inputs": [
+                {
+                    "sampler_name": "Edge",
+                    "target": "edge"
+                },
+                {
+                    "sampler_name": "Glow",
+                    "target": "glow",
+                    "bilinear": true
+                },
+                {
+                    "sampler_name": "Sil",
+                    "target": "sil"
+                }
+            ],
+            "output": "minecraft:entity_outline"
+        }
+    ]
+}

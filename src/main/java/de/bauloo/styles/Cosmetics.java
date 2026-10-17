@@ -117,12 +117,6 @@ public final class Cosmetics {
         StylesUiConfig.save();
     }
 
-    /**
-     * The skin textures with the Bauloo cape put in: your own cape on you, a cape bauloo gave
-     * another player (PlayerCapes, admin screens only). Returns old when nothing changes.
-     * Used by the render state (vanilla) and by getSkin() itself, so cape mods that read the
-     * player directly (Wavey Capes) show it too.
-     */
     /** The Bauloo cape this player wears on your screen, or null. */
     public static Identifier capeFor(net.minecraft.entity.PlayerLikeEntity player) {
         MinecraftClient mc = MinecraftClient.getInstance();
@@ -132,6 +126,12 @@ public final class Cosmetics {
         return player == mc.player ? currentCapeTexture() : PlayerCapes.texture(player.getName().getString());
     }
 
+    /**
+     * The skin textures with the Bauloo cape put in: your own cape on you, a cape bauloo gave
+     * another player (PlayerCapes, admin screens only). Returns old when nothing changes.
+     * Used by the render state (vanilla) and by getSkin() itself, so cape mods that read the
+     * player directly (Wavey Capes) show it too.
+     */
     public static net.minecraft.entity.player.SkinTextures withCape(net.minecraft.entity.PlayerLikeEntity player,
             net.minecraft.entity.player.SkinTextures old) {
         Identifier texture = old == null ? null : capeFor(player);

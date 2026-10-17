@@ -1,18 +1,18 @@
 {
-  "open": "sky",
+  "open": "extras",
   "hero": {
-    "title": "Skies without Skyboxify",
-    "text": "Sky styles now work on their own. Drag the new time slider in the Sky tab to see your sky at any hour."
+    "title": "A whole new look",
+    "text": "The menu is glass now, in 7 colours. Extras are tiles you can switch on with one click, and Player Outline got a Neon Glow."
   },
   "items": [
-    ["NEW", "Shield, Mace, Cobwebs, Totem, Axe and Grass"],
-    ["NEW", "Stone, Deepslate, Snow and Inventory styles"],
-    ["NEW", "Time slider in the Sky tab"],
-    ["NEW", "Pick styles, then APPLY all at once"],
-    ["NEW", "Cobweb outline in its own color"],
-    ["NEW", "Share presets with one-time keys"],
-    ["NEW", "Gap size and a color bar for every color"],
-    ["FIX", "Long social names, My Packs rescans itself"],
-    ["GONE", "Shatter kill effect"]
+    ["NEW", "Glass menu in 7 colours, Halloween included"],
+    ["NEW", "Extras as tiles, Neon Glow player outline"],
+    ["NEW", "Draw your own textures in My Drawings"],
+    ["NEW", "Halloween capes, Pumpkin Head, Witch Hat, auras"],
+    ["NEW", "Animated items also work with Sodium Extra"],
+    ["NEW", "Export a preset as a texture pack (VIP)"],
+    ["FIX", "Capes with Wavey Capes, grass colour"],
+    ["GONE", "Auto updater: new versions show a download button"],
+    ["GONE", "Hit Color, Low Fire, Fog and Grey world"]
   ]
 }

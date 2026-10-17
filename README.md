@@ -14,8 +14,8 @@ so you can read exactly what it does and build the jar yourself.
 
 - It downloads styles and their preview pictures from the
   [bauloo-styles-cloud](https://github.com/Bauloo0/bauloo-styles-cloud) repository and its mirror worker.
-- It checks for a newer version (`release/version.json` in the same repository). The normal download
-  can update itself; the download without the auto updater only shows a message.
+- It checks for a newer version (`release/version.json` in the same repository) and shows a download
+  button. Since 1.6.0 it never downloads or replaces itself.
 - It sends your Minecraft name to the worker so other players with the mod can see the small icon
   next to your name in the tab list. You can switch this off in Extras.
 - It sends a hashed PC id for anonymous usage stats and so that feedback can't be spammed.
