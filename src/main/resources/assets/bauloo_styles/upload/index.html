@@ -197,9 +197,10 @@
   const GROUPS = [
     ["Whole texture pack", ["all"]],
     ["Crystal PvP", ["crystal", "anchor", "obsidian", "glowstone", "totem", "gap", "pearl"]],
-    ["Gear", ["armor", "sword", "pickaxe", "axe", "shield", "mace"]],
-    ["Blocks", ["stone", "deepslate", "snow", "cobweb"]],
-    ["World & HUD", ["fire", "sky", "hotbar", "inventory"]],
+    ["Gear", ["armor", "sword", "pickaxe", "axe", "shield", "mace", "trident", "spear", "elytra"]],
+    ["PvP items", ["tntcart", "windcharge", "xpbottle"]],
+    ["Blocks", ["stone", "deepslate", "snow", "cobweb", "rails"]],
+    ["World & HUD", ["fire", "sky", "hotbar", "inventory", "font"]],
   ];
   const groupOf = (id) => (GROUPS.find(g => g[1].includes(id)) || ["More"])[0];
   let category = null, upload = null, canPublish = false;
