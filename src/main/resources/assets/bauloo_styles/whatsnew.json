@@ -1,18 +1,17 @@
 {
   "open": "extras",
   "hero": {
-    "title": "A whole new look",
-    "text": "The menu is glass now, in 7 colours. Extras are tiles you can switch on with one click, and Player Outline got a Neon Glow."
+    "title": "Happy Halloween",
+    "text": "9 new kill effects, mace effects, sky effects and Totem Pop. Ask Bauloo AI answers your questions right in the menu, and the Halloween look is on for everyone."
   },
   "items": [
-    ["NEW", "Glass menu in 7 colours, Halloween included"],
-    ["NEW", "Extras as tiles, Neon Glow player outline"],
-    ["NEW", "Draw your own textures in My Drawings"],
-    ["NEW", "Halloween capes, Pumpkin Head, Witch Hat, auras"],
-    ["NEW", "Animated items also work with Sodium Extra"],
-    ["NEW", "Export a preset as a texture pack (VIP)"],
-    ["FIX", "Capes with Wavey Capes, grass colour"],
-    ["GONE", "Auto updater: new versions show a download button"],
-    ["GONE", "Hit Color, Low Fire, Fog and Grey world"]
+    ["NEW", "9 kill effects: UFO, Black Hole, Meteor, Gravestone and more"],
+    ["NEW", "Mace Effects, Sky Effects and Totem Pop in Extras"],
+    ["NEW", "Ask Bauloo AI: help right in the menu"],
+    ["NEW", "Styles over server packs, 3D preview in My Drawings"],
+    ["NEW", "A short tour of the menu (the ? button)"],
+    ["FIX", "Styles not turning on with Dawn and other launchers"],
+    ["FIX", "Style packs no longer show in other pack menus"],
+    ["FIX", "Packs with an old pack.mcmeta and 3D item models"]
   ]
 }

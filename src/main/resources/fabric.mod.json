@@ -3,7 +3,7 @@
 	"id": "bauloo_styles",
 	"version": "${version}",
 	"name": "Bauloo Styles",
-	"description": "Crystal, anchor, armor, tools, fire and sky styles in one menu, with extras and cosmetics. Keeps itself up to date (switch it off in Extras). Sky styles use Skyboxify.",
+	"description": "Crystal, anchor, armor, tools, fire and sky styles in one menu, with extras and cosmetics. Sky styles work on their own or with Skyboxify.",
 	"authors": [
 		"bauloo"
 	],
@@ -30,7 +30,7 @@
 		"fabricloader": ">=0.15.0",
 		"fabric-resource-loader-v0": "*",
 		"fabric-rendering-v1": "*",
-		"minecraft": ">=1.21.11",
+		"minecraft": "1.21.11",
 		"fabric-lifecycle-events-v1": "*"
 	},
 	"suggests": {

@@ -21,6 +21,30 @@ public class BaulooStylesClient implements ClientModInitializer {
 	public static final String MOD_ID = "bauloo_styles";
 	public static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("Bauloo Styles");
 
+	/**
+	 * The resourcepacks folder the game really reads. Launchers like Dawn move it away from
+	 * gameDir/resourcepacks, and a pack written there is never found.
+	 */
+	public static java.nio.file.Path packsDir() {
+		net.minecraft.client.MinecraftClient mc = net.minecraft.client.MinecraftClient.getInstance();
+		return mc != null ? mc.getResourcePackDir() : FabricLoader.getInstance().getGameDir().resolve("resourcepacks");
+	}
+
+	/**
+	 * Where the mod keeps its own packs (cloud styles, uploads, anchor glow, crystal core). The game reads
+	 * this folder too (StylePacksMixin), with the same "file/..." ids as before, but launchers and other
+	 * pack menus that list the resourcepacks folder don't see them.
+	 */
+	public static java.nio.file.Path stylePacksDir() {
+		return FabricLoader.getInstance().getConfigDir().resolve("bauloo-styles/packs");
+	}
+
+	/** Our packs that are still in the normal resourcepacks folder (older versions put them there). */
+	public static boolean isStylePack(String fileName) {
+		return fileName.startsWith("bauloo_cloud_") || fileName.startsWith("bauloo_upload_")
+				|| fileName.startsWith("bauloo_anchor_glow") || fileName.startsWith("bauloo_crystal_core");
+	}
+
 	/** The style categories shown in the menu. */
 	public enum Tab {
 		CRYSTAL("crystal", "Crystal"),
@@ -51,9 +75,10 @@ public class BaulooStylesClient implements ClientModInitializer {
 		GRASS("grass", "Grass"),
 		/** free slots for collections that come from the cloud index (CloudCategories); hidden while unused */
 		EXTRA1("extra1", "Extra 1"), EXTRA2("extra2", "Extra 2"), EXTRA3("extra3", "Extra 3"), EXTRA4("extra4", "Extra 4"),
-		EXTRA5("extra5", "Extra 5"), EXTRA6("extra6", "Extra 6"), EXTRA7("extra7", "Extra 7"), EXTRA8("extra8", "Extra 8");
+		EXTRA5("extra5", "Extra 5"), EXTRA6("extra6", "Extra 6"), EXTRA7("extra7", "Extra 7"), EXTRA8("extra8", "Extra 8"),
+		EXTRA9("extra9", "Extra 9"), EXTRA10("extra10", "Extra 10"), EXTRA11("extra11", "Extra 11"), EXTRA12("extra12", "Extra 12");
 
-		/** fixed for the built-in collections; a cloud slot (EXTRA1-8) gets its own when the index names one */
+		/** fixed for the built-in collections; a cloud slot (EXTRA1-12) gets its own when the index names one */
 		public String prefix;
 		public String title;
 		/** item id for the menu icon of a cloud slot */
@@ -285,7 +310,7 @@ public class BaulooStylesClient implements ClientModInitializer {
 			case STONE -> STONE;
 			case SNOW -> SNOW;
 			case GRASS -> GRASS;
-			case EXTRA1, EXTRA2, EXTRA3, EXTRA4, EXTRA5, EXTRA6, EXTRA7, EXTRA8 -> NONE;
+			case EXTRA1, EXTRA2, EXTRA3, EXTRA4, EXTRA5, EXTRA6, EXTRA7, EXTRA8, EXTRA9, EXTRA10, EXTRA11, EXTRA12 -> NONE;
 			case OBSIDIAN -> OBSIDIAN;
 		};
 	}
@@ -349,6 +374,10 @@ public class BaulooStylesClient implements ClientModInitializer {
 		SpotifyHud.register();
 		StylesPresence.register();
 		KillEffect.register();
+		MaceEffect.register();
+		WorldMenu.register();
+		Pets.register();
+		SkyEffects.register();
 		// cosmetics: head and aura on your own player
 		net.fabricmc.fabric.api.client.rendering.v1.LivingEntityFeatureRendererRegistrationCallback.EVENT.register(
 				(type, renderer, helper, context) -> {

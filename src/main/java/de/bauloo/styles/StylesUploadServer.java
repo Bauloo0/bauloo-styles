@@ -150,6 +150,19 @@ public final class StylesUploadServer {
         return canPublish();
     }
 
+    private static Boolean ownerOnly;
+
+    /** Features still only on bauloo's PC (pets, World menu theme). Checked once, cheap to call every frame. */
+    public static boolean ownerFeatures() {
+        if (ownerOnly == null) {
+            ownerOnly = false;
+        }
+        if (ownerOnly == null) {
+            ownerOnly = canPublish();
+        }
+        return ownerOnly;
+    }
+
     // ------------------------------------------------------ publish key (friends)
 
     private static final java.net.http.HttpClient HTTP = java.net.http.HttpClient.newBuilder()

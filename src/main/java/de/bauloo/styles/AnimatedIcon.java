@@ -17,6 +17,8 @@ public final class AnimatedIcon {
     private final long frameMs;
     private volatile NativeImage[] frames;
     private boolean loading;
+    /** after a failed load (e.g. the cloud download) wait a bit before trying again */
+    private volatile long retryAt;
     private NativeImageBackedTexture texture;
     private int shown = -1;
 
@@ -46,8 +48,13 @@ public final class AnimatedIcon {
         return id;
     }
 
+    private synchronized void loadFailed() {
+        loading = false;
+        retryAt = System.currentTimeMillis() + 30_000L;
+    }
+
     private synchronized void startLoading() {
-        if (loading) {
+        if (loading || System.currentTimeMillis() < retryAt) {
             return;
         }
         loading = true;
@@ -58,6 +65,7 @@ public final class AnimatedIcon {
                 for (int i = 0; i < count; i++) {
                     BufferedImage img = source.read(i);
                     if (img == null) {
+                        loadFailed();
                         return;
                     }
                     NativeImage n = new NativeImage(W, H, false);
@@ -84,6 +92,7 @@ public final class AnimatedIcon {
                 frames = out;
             } catch (Exception e) {
                 BaulooStylesClient.LOGGER.warn("Animated icon {} could not load: {}", id, e.toString());
+                loadFailed();
             }
         }, "Bauloo Cape Icon");
         t.setDaemon(true);

@@ -137,7 +137,7 @@ public final class MyPacks {
 
     private static String signature() {
         StringBuilder sb = new StringBuilder(String.join(",", StylesPackFilter.categories())).append('|');
-        Path folder = FabricLoader.getInstance().getGameDir().resolve("resourcepacks");
+        Path folder = BaulooStylesClient.packsDir();
         try (var list = Files.list(folder)) {
             list.filter(p -> {
                 String n = p.getFileName().toString().toLowerCase(Locale.ROOT);
@@ -175,7 +175,7 @@ public final class MyPacks {
         // cached parts only count when they were found with the same collections as now
         String cats = String.join(",", StylesPackFilter.categories());
         try {
-            Path folder = FabricLoader.getInstance().getGameDir().resolve("resourcepacks");
+            Path folder = BaulooStylesClient.packsDir();
             List<Path> zips = new ArrayList<>();
             if (Files.isDirectory(folder)) {
                 try (var list = Files.list(folder)) {
@@ -341,12 +341,12 @@ public final class MyPacks {
      */
     public static String use(Style s) {
         try {
-            Path folder = FabricLoader.getInstance().getGameDir().resolve("resourcepacks");
+            Path folder = BaulooStylesClient.packsDir();
             Path target = StylesUploadManager.root().resolve(s.category());
             Files.createDirectories(target);
             String base = s.name().isEmpty() ? s.category() : s.name();
             Path zip = target.resolve(base + ".zip");
-            if (!Files.exists(zip)) {
+            if (!Files.exists(zip) || StylesPackFilter.missingModels(folder.resolve(s.pack()), zip, s.category())) {
                 if (StylesPackFilter.extract(folder.resolve(s.pack()), s.category(), zip) == 0) {
                     return null;
                 }

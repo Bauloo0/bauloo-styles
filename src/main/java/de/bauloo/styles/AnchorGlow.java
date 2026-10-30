@@ -41,7 +41,7 @@ public final class AnchorGlow {
     }
 
     private static Path packDir() {
-        return FabricLoader.getInstance().getGameDir().resolve("resourcepacks").resolve(FOLDER);
+        return BaulooStylesClient.stylePacksDir().resolve(FOLDER);
     }
 
     private static Path previewFile() {

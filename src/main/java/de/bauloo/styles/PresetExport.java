@@ -57,7 +57,7 @@ public final class PresetExport {
 
     private static String run(StylesPresets.Preset preset) throws Exception {
         lastFolder = null;
-        Path packs = FabricLoader.getInstance().getGameDir().resolve("resourcepacks");
+        Path packs = BaulooStylesClient.packsDir();
         String name = preset.name().replaceAll("[^A-Za-z0-9 _()-]", "").trim();
         if (name.isEmpty()) {
             name = "Preset";

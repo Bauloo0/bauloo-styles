@@ -41,6 +41,8 @@ public final class AnimatedCape {
     private int tint = -1;
     private volatile NativeImage[] frames;
     private boolean loading;
+    /** after a failed load (e.g. the cloud download) wait a bit before trying again */
+    private volatile long retryAt;
     private Texture texture;
     private int shown = -1;
 
@@ -122,8 +124,13 @@ public final class AnimatedCape {
         }
     }
 
+    private synchronized void loadFailed() {
+        loading = false;
+        retryAt = System.currentTimeMillis() + 30_000L;
+    }
+
     private synchronized void startLoading() {
-        if (loading) {
+        if (loading || System.currentTimeMillis() < retryAt) {
             return;
         }
         loading = true;
@@ -138,6 +145,7 @@ public final class AnimatedCape {
                     BufferedImage img = source.read(i);
                     if (img == null) {
                         BaulooStylesClient.LOGGER.warn("Animated cape {}: frame {} missing", id, i);
+                        loadFailed();
                         return;
                     }
                     NativeImage n = new NativeImage(FACE_W, FACE_H, false);
@@ -151,6 +159,7 @@ public final class AnimatedCape {
                 frames = out;
             } catch (Exception e) {
                 BaulooStylesClient.LOGGER.warn("Animated cape {} could not load: {}", id, e.toString());
+                loadFailed();
             }
         }, "Bauloo Animated Cape");
         t.setDaemon(true);

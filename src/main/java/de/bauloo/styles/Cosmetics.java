@@ -19,7 +19,7 @@ public final class Cosmetics {
      * picking on one of them replaces the other.
      */
     public enum Slot {
-        CAPE("Capes"), MC_CAPE("MC Capes"), HEAD("Head"), AURA("Aura");
+        CAPE("Capes"), MC_CAPE("MC Capes"), HEAD("Head"), AURA("Aura"), PET("Pets");
 
         public final String title;
 
@@ -57,6 +57,33 @@ public final class Cosmetics {
             {"zombiehorse", "Zombie Horse", "a3f6e4f14801f3ea55e3d95b9b4ef3b5e8802d947f669de93d6ec4b9354a436b"},
             {"builder", "Builder", "2c579968c64c1719740fd8c2a451461879b238002574fce48f7d1a7c36a1c7d4"},
             {"experience", "Minecraft Experience", "7658c5025c77cfac7574aab3af94a46a8886e3b7722a895255fbf22ab8652434"},
+            {"hero", "Hero", "bb384a1079b9a6f2811520c7991b6e8150d02e5a96457e44509e30822f72f38e"},
+            {"twisted", "Twisted", "24aafc451aa2cc34ddc7265211678585c0ef4da4d32edb75ecec1bd8b5408381"},
+            {"moonlight", "Moonlight Trail", "fe8a02dfe9e390e44ff33d69feef9d3943f76d3901015bbd50f0b67722d288bd"},
+            {"crafter", "Crafter", "479eacefa3cdd7aca94207f36c0dd449653ddf259daf40544a5866baf05eee22"},
+            {"aurora", "Aurora", "7c418dfbd37412a55e9f1425c9807a591ad10cf71b1edb576a587be9114c277f"},
+            {"office", "Mojang Office", "5c29410057e32abec02d870ecb52ec25fb45ea81e785a7854ae8429d7236ca26"},
+            {"mojangclassic", "Mojang Classic", "5786fe99be377dfb6858859f926c4dbc995751e91cee373468c5fbf4865e7151"},
+            {"mojang", "Mojang", "8f120319222a9f4a104e2f5cb97b2cda93199a2ee9e1585cb8d09d6f687cb761"},
+            {"mojangstudios", "Mojang Studios", "9e507afc56359978a3eb3e32367042b853cddd0995d17d0da995662913fb00f7"},
+            {"translator", "Translator", "1bf91499701404e21bd46b0191d63239a4ef76ebde88d27e4d430ac211df681e"},
+            {"translatorcn", "Chinese Translator", "2262fb1d24912209490586ecae98aca8500df3eff91f2a07da37ee524e7e3cb6"},
+            {"moderator", "Moderator", "ae677f7d98ac70a533713518416df4452fe5700365c09cf45d0d156ea9396551"},
+            {"mapmaker", "Realms MapMaker", "17912790ff164b93196f08ba71d0e62129304776d0f347334f8a6eae509f8a56"},
+            {"scrolls", "Scrolls Champion", "3efadf6510961830f9fcc077f19b4daf286d502b5f5aafbd807c7bbffcaca245"},
+            {"cobalt", "Cobalt", "ca35c56efe71ed290385f4ab5346a1826b546a54d519e6a3ff01efa01acce81"},
+            {"prismarine", "Prismarine", "d8f8d13a1adf9636a16c31d47f3ecc9bb8d8533108aa5ad2a01b13b1a0c55eac"},
+            {"turtle", "Turtle", "5048ea61566353397247d2b7d946034de926b997d5e66c86483dfb1e031aee95"},
+            {"birthday", "Birthday", "2056f2eebd759cce93460907186ef44e9192954ae12b227d817eb4b55627a7fc"},
+            {"valentine", "Valentine", "e578ef995fabcf0a94768f9651ac3aaba30c59ef85d2438e9b3e0cc1d810652b"},
+            {"oxeye", "Oxeye", "7706b5f5fc90329691e59277dcc66ba20572219fa8e5da472afd5235fad12cc8"},
+            {"blueprint", "Blueprint", "fdcf48f01ec480d1d7cbec27f7ddce48c9da2be6724641109444dae58d4cd013"},
+            {"snowman", "Snowman", "23ec737f18bfe4b547c95935fc297dd767bb84ee55bfd855144d279ac9bfd9fe"},
+            {"spade", "Spade", "2e002d5e1758e79ba51d08d92a0f3a95119f2f435ae7704916507b6c565a7da8"},
+            {"cheapshot", "Cheapsh0t's", "ca29f5dd9e94fb1748203b92e36b66fda80750c87ebc18d6eafdb0e28cc1d05f"},
+            {"db", "dB", "bcfbe84c6542a4a5c213c1cacf8979b5e913dcb4ad783a8b80e3c4a7d5c8bdac"},
+            {"millionth", "Millionth Customer", "70efffaf86fe5bc089608d3cb297d3e276b9eb7a8f9f2fe6659c23a2d8b18edf"},
+            {"bacon", "Bacon", "fd14214cd8073059e93d9c626260f5df85e5a959181537119df56cadaf5002cc"},
     };
     /** saved keys of Mojang capes carry this prefix, so they share the one cape setting */
     public static final String MC = "mc_";
@@ -94,6 +121,7 @@ public final class Cosmetics {
             case MC_CAPE -> MC_CAPES;
             case HEAD -> HEADS;
             case AURA -> AURAS;
+            case PET -> Pets.LIST;
         };
     }
 
@@ -104,6 +132,7 @@ public final class Cosmetics {
             case MC_CAPE -> StylesUiConfig.cosCape.startsWith(MC) ? StylesUiConfig.cosCape.substring(MC.length()) : "none";
             case HEAD -> StylesUiConfig.cosHead;
             case AURA -> StylesUiConfig.cosAura;
+            case PET -> StylesUiConfig.cosPet;
         };
     }
 
@@ -113,6 +142,7 @@ public final class Cosmetics {
             case MC_CAPE -> StylesUiConfig.cosCape = "none".equals(key) ? "none" : MC + key;
             case HEAD -> StylesUiConfig.cosHead = key;
             case AURA -> StylesUiConfig.cosAura = key;
+            case PET -> StylesUiConfig.cosPet = key;
         }
         StylesUiConfig.save();
     }
@@ -149,7 +179,18 @@ public final class Cosmetics {
     }
 
     /** What the player wears right now: the tried-on one while hovering, else the saved one. */
+    /** The pages shown in the menu: pets only on bauloo's PC for now. */
+    public static Slot[] slots() {
+        if (StylesUploadServer.ownerFeatures()) {
+            return Slot.values();
+        }
+        return new Slot[]{Slot.CAPE, Slot.MC_CAPE, Slot.HEAD, Slot.AURA};
+    }
+
     public static String current(Slot slot) {
+        if (slot == Slot.PET && !StylesUploadServer.ownerFeatures()) {
+            return "none";
+        }
         String trying = TRY_ON.get(slot);
         String key = trying != null ? trying : saved(slot);
         return valid(slot, key) ? key : "none";
@@ -219,6 +260,7 @@ public final class Cosmetics {
             case CAPE, MC_CAPE -> "cape_";
             case HEAD -> "head_";
             case AURA -> "aura_";
+            case PET -> "pet_";
         };
         if (slot == Slot.CAPE && "color".equals(key)) {
             return colorCape();

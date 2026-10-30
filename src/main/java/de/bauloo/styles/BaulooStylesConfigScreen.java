@@ -40,6 +40,8 @@ public class BaulooStylesConfigScreen extends Screen {
     private static final int FOOTER_H = 28;
     private static final int GAP = 8;
     private static final int LABEL_H = 17;
+    /** target width of a style card in the grid */
+    private static final int CARD_W = 78;
 
     private interface Action {
         void run(int button, double mouseX, double mouseY);
@@ -52,7 +54,7 @@ public class BaulooStylesConfigScreen extends Screen {
         }
     }
 
-    private enum Drag { NONE, HUE, OPACITY, OUTLINE_HUE, OUTLINE_WIDTH, BLOCK_WIDTH, SHIELD, TOTEM, SHIELD_SIZE, GAP_SIZE, PICK_HUE, COBWEB_WIDTH, TIME, COS_TURN, CRYSTAL_SPIN, TOTEM_POP, GRADIENT, KILL_VOLUME }
+    private enum Drag { NONE, HUE, OPACITY, OUTLINE_HUE, OUTLINE_WIDTH, BLOCK_WIDTH, SHIELD, TOTEM, SHIELD_SIZE, GAP_SIZE, PICK_HUE, COBWEB_WIDTH, TIME, COS_TURN, CRYSTAL_SPIN, TOTEM_POP, GRADIENT, KILL_VOLUME, TOTEM_PART_SIZE }
 
     private static final class Layout {
         int fx, fy, fw, fh, bodyY, footerY;
@@ -71,6 +73,24 @@ public class BaulooStylesConfigScreen extends Screen {
     private final List<Hit> hits = new ArrayList<>();
 
     private Tab tab = Tab.CRYSTAL;
+    /** the collection on screen, for the World theme's blocks */
+    private static Tab lastTab = Tab.CRYSTAL;
+
+    public static Tab shownTab() {
+        return lastTab;
+    }
+
+    /** the crystal style in the inspector (null = vanilla), for the World theme's crystals */
+    private static String lastCrystal;
+
+    public static String pickedCrystal() {
+        return lastCrystal;
+    }
+
+    /** The resource pack id of a style folder (built-in, upload or cloud). */
+    public static String packIdOf(String folder) {
+        return packId(folder);
+    }
     private int focusedIndex;
     private int hoveredEntry = -1;
     private String query = "";
@@ -95,6 +115,13 @@ public class BaulooStylesConfigScreen extends Screen {
     private int vipVersion = -1;
     /** the Cosmetics page: capes, wings, head and aura on your own player */
     private static boolean cosmeticsView;
+    /** cosmetics card grid: scroll position and the area the mouse wheel scrolls */
+    private double cosScroll;
+    private double cosMaxScroll;
+    private int cosLeft;
+    private int cosRight;
+    private int cosTop;
+    private int cosBottom;
     private static Cosmetics.Slot cosSlot = Cosmetics.Slot.CAPE;
     private float cosYaw = 180;
     /** the slot the preview was turned for: a new slot turns it to its side again (capes: the back) */
@@ -119,6 +146,24 @@ public class BaulooStylesConfigScreen extends Screen {
     /** a newer version is out: asked once per version when the menu opens */
     private String updateAsk;
     private WhatsNew.Notes whatsNew;
+    /** Ask Bauloo AI: the help chat is open, and what is typed in it */
+    private boolean aiOpen;
+    private String aiInput = "";
+    /** how far the chat is scrolled up from the newest message, in pixels */
+    private int aiScroll;
+    private int aiMaxScroll;
+    private int aiSeen;
+    /** the tour of the menu (first open, or the ? button): which step, -1 = off */
+    private int tourStep = -1;
+    /** where each tour step points, measured while drawing (null = not on screen right now) */
+    private final int[][] tourSpots = new int[6][];
+    private static final String[][] TOUR = {
+            {"Pick a collection", "Crystals, anchors, armor, tools ... every part of the game you can change."},
+            {"Click a style", "It goes on right away - no restart, no resource pack menu."},
+            {"See it big", "Turn it, zoom in, or star it so you find it again."},
+            {"Upload your own packs", "Got a texture pack? Upload it and use just the parts you like."},
+            {"Extras", "Kill effects, sky effects, HUD, capes and more."},
+            {"Presets", "Save your whole look and share it with friends as a code."}};
     private boolean whatsNewChecked;
     /** the RESET button in the footer asks first */
     private boolean resetAsk;
@@ -175,6 +220,7 @@ public class BaulooStylesConfigScreen extends Screen {
     @Override
     protected void init() {
         super.init();
+        WorldMenu.open();
         if (StylesBlock.isBlocked() && client != null) {
             // bauloo shut this account out of Bauloo Styles: a plain notice instead of the menu
             StylesBlock.enforce();
@@ -308,6 +354,22 @@ public class BaulooStylesConfigScreen extends Screen {
     /** Audit tour only: how many stops auditShow has (every collection, then Extras). */
     public static int auditStops() {
         return shownTabs().length + 2;
+    }
+
+    /** Dev test only: the AI chat with a short example conversation. */
+    public void testAi() {
+        endTour();
+        AiHelp.MESSAGES.clear();
+        AiHelp.MESSAGES.add(new String[]{"me", "how do i upload my own pack?"});
+        AiHelp.MESSAGES.add(new String[]{"ai", "Click UPLOAD at the bottom left. Your browser opens - drop your pack .zip there and pick the parts you want. They show up in the menu right away."});
+        aiOpen = true;
+        aiInput = "why does my style not show on serv";
+    }
+
+    /** Dev test only: show this step of the menu tour. */
+    public void testTour(int step) {
+        startTour();
+        tourStep = step;
     }
 
     /** Audit tour only: open one collection with its first style in the preview, or Extras at the end. */
@@ -483,7 +545,7 @@ public class BaulooStylesConfigScreen extends Screen {
             case STONE -> Items.STONE;
             case SNOW -> Items.SNOW_BLOCK;
             case GRASS -> Items.GRASS_BLOCK;
-            case EXTRA1, EXTRA2, EXTRA3, EXTRA4, EXTRA5, EXTRA6, EXTRA7, EXTRA8 -> Items.PAPER;
+            case EXTRA1, EXTRA2, EXTRA3, EXTRA4, EXTRA5, EXTRA6, EXTRA7, EXTRA8, EXTRA9, EXTRA10, EXTRA11, EXTRA12 -> Items.PAPER;
             case OBSIDIAN -> Items.OBSIDIAN;
         });
     }
@@ -816,12 +878,26 @@ public class BaulooStylesConfigScreen extends Screen {
 
     // ----------------------------------------------------------------- layout
 
+    /** World theme on, and the window wide enough for the menu on the right with you beside it */
+    private boolean worldLayout() {
+        return WorldMenu.active() && width >= 620;
+    }
+
     private Layout layout() {
         Layout l = new Layout();
         // a centred panel with the blurred world around it
         l.fw = Math.max(300, Math.min(width - MARGIN * 2, Math.max(620, Math.round(width * 0.86F))));
         l.fh = Math.max(200, Math.min(height - MARGIN * 2, Math.max(340, Math.round(height * 0.92F))));
         l.fx = (width - l.fw) / 2;
+        if (worldLayout()) {
+            // World theme: the menu on the right, the left part free for you and the two blocks
+            l.fw = Math.max(560, Math.round(width * 0.56F));
+            l.fx = width - l.fw - MARGIN;
+            WorldMenu.freePart = l.fx / (float) width;
+            float f = uiFactor();
+            MenuTilt.layout(l.fx * f, width * f, height * f);
+        }
+        MenuTilt.layoutOn = worldLayout();
         l.fy = Math.max(8, (height - l.fh) / 2);
         l.bodyY = l.fy + HEADER_H;
         l.footerY = l.fy + l.fh - FOOTER_H;
@@ -1112,8 +1188,21 @@ public class BaulooStylesConfigScreen extends Screen {
         return new Click(click.x() / f, click.y() / f, click.buttonInfo());
     }
 
+    /** Tilted World menu: where the mouse really points on the panel (else it stays as it is). */
+    private static double[] panelMouse(double x, double y) {
+        return MenuTilt.active() ? MenuTilt.toPanel(x, y) : new double[]{x, y};
+    }
+
+    private static Click panelClick(Click click) {
+        double[] p = panelMouse(click.x(), click.y());
+        return new Click(p[0], p[1], click.buttonInfo());
+    }
+
     @Override
     public void render(DrawContext ctx, int mouseX, int mouseY, float delta) {
+        double[] pm = panelMouse(mouseX, mouseY);
+        mouseX = (int) Math.round(pm[0]);
+        mouseY = (int) Math.round(pm[1]);
         float f = uiFactor();
         enterScale();
         var m = ctx.getMatrices();
@@ -1131,7 +1220,7 @@ public class BaulooStylesConfigScreen extends Screen {
     public boolean mouseClicked(Click click, boolean doubled) {
         enterScale();
         try {
-            return clickedUi(scaledClick(click), doubled);
+            return clickedUi(scaledClick(panelClick(click)), doubled);
         } finally {
             leaveScale();
         }
@@ -1142,7 +1231,7 @@ public class BaulooStylesConfigScreen extends Screen {
         float f = uiFactor();
         enterScale();
         try {
-            return draggedUi(scaledClick(click), offsetX / f, offsetY / f);
+            return draggedUi(scaledClick(panelClick(click)), offsetX / f, offsetY / f);
         } finally {
             leaveScale();
         }
@@ -1152,7 +1241,7 @@ public class BaulooStylesConfigScreen extends Screen {
     public boolean mouseReleased(Click click) {
         enterScale();
         try {
-            return releasedUi(scaledClick(click));
+            return releasedUi(scaledClick(panelClick(click)));
         } finally {
             leaveScale();
         }
@@ -1160,6 +1249,9 @@ public class BaulooStylesConfigScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        double[] pm = panelMouse(mouseX, mouseY);
+        mouseX = pm[0];
+        mouseY = pm[1];
         float f = uiFactor();
         enterScale();
         try {
@@ -1201,11 +1293,25 @@ public class BaulooStylesConfigScreen extends Screen {
                 updateAsk = v;
             }
         }
-        boolean modal = zoomFolder != null || pendingPreset != null || updateAsk != null || resetAsk || whatsNew != null;
+        if (tourStep < 0 && !StylesUiConfig.tourSeen && whatsNew == null && updateAsk == null) {
+            startTour();
+        }
+        java.util.Arrays.fill(tourSpots, null);
+        boolean modal = zoomFolder != null || pendingPreset != null || updateAsk != null || resetAsk || whatsNew != null
+                || tourStep >= 0 || aiOpen;
         int mx = modal ? -10000 : mouseX;
         int my = modal ? -10000 : mouseY;
 
-        ctx.fill(0, 0, width, height, c.backdrop);
+        lastTab = tab;
+        if (tab == Tab.CRYSTAL && !entries.isEmpty()) {
+            lastCrystal = entries.get(Math.max(0, Math.min(focusedIndex, entries.size() - 1)))[0];
+        }
+        if (!worldLayout()) {
+            ctx.fill(0, 0, width, height, c.backdrop);
+        }
+        if (MenuTilt.active()) {
+            rounded(ctx, l.fx, l.fy, l.fw, l.fh, PANEL, 0xD80C0912);
+        }
         drawGlassPanel(ctx, l);
         if (c.spooky) {
             HalloweenFx.behind(ctx, l.fx, l.fy, l.fw, HEADER_H, l.mainX, l.mainW, l.footerY);
@@ -1213,6 +1319,10 @@ public class BaulooStylesConfigScreen extends Screen {
 
         drawHeader(ctx, l, mx, my);
         drawRail(ctx, l, mx, my);
+        tourSpots[1] = new int[]{l.mainX, l.bodyY + 2, l.mainW, l.footerY - l.bodyY - 4};
+        if (l.side) {
+            tourSpots[2] = new int[]{l.sideX, l.bodyY + 2, l.sideW, l.footerY - l.bodyY - 4};
+        }
         hoveredEntry = -1;
         Cosmetics.tryOn(null, null);
         if (cosmeticsView && !publicView) {
@@ -1257,6 +1367,11 @@ public class BaulooStylesConfigScreen extends Screen {
         if (resetAsk) {
             drawResetAsk(ctx, mouseX, mouseY);
         }
+        if (tourStep >= 0 && whatsNew == null && updateAsk == null && pendingPreset == null && !resetAsk) {
+            drawTour(ctx, mouseX, mouseY);
+        } else if (aiOpen && whatsNew == null && updateAsk == null && pendingPreset == null && !resetAsk) {
+            drawAi(ctx, mouseX, mouseY);
+        }
         if (zoomFolder != null) {
             drawZoom(ctx);
         }
@@ -1285,6 +1400,33 @@ public class BaulooStylesConfigScreen extends Screen {
         }
         text(ctx, "Bauloo Styles", x + 33, y + 11, c.text);
         scaled(ctx, version, x + 33, y + 23, c.textDim, 0.8F, false);
+        {
+            // ? shows the tour again
+            int qx = badgeEnd + 8;
+            int qy = y + 12;
+            boolean qh = inside(mx, my, qx, qy, 14, 14);
+            soft(ctx, qx, qy, 14, 14, qh ? c.surfaceHover : c.surface2);
+            text(ctx, "?", qx + (14 - textWidth("?")) / 2 + 1, qy + 3, qh ? c.accentBright : c.accent);
+            if (qh) {
+                tooltip = "Show the tour again";
+                tooltipX = qx - 20;
+                tooltipY = qy + 18;
+            }
+            hit(qx, qy, 14, 14, (b, px, py) -> startTour());
+            badgeEnd = qx + 14;
+            // ASK AI: the help chat
+            String ask = "ASK AI";
+            int aw = textWidth(ask) + 12;
+            int ax = badgeEnd + 6;
+            boolean ah = inside(mx, my, ax, qy, aw, 14);
+            soft(ctx, ax, qy, aw, 14, ah ? c.accent : c.accentDark);
+            text(ctx, ask, ax + 6, qy + 3, ah ? c.onAccent : c.accentBright);
+            hit(ax, qy, aw, 14, (b, px, py) -> {
+                aiOpen = true;
+                searchFocused = false;
+            });
+            badgeEnd = ax + aw;
+        }
 
         // Loadout: what is active in every collection, click to jump there.
         Tab[] tabs = shownTabs();
@@ -1322,16 +1464,35 @@ public class BaulooStylesConfigScreen extends Screen {
         }
     }
 
+    /** A rail icon, centred on its thumb box; shrunk when the rows are too short for 16 px items. */
+    private void railItem(DrawContext ctx, ItemStack stack, int boxX, int rowY, int rowH, int thumb) {
+        int size = Math.min(16, rowH - 2);
+        int x = boxX + (thumb - size) / 2;
+        int y = rowY + (rowH - size) / 2;
+        if (size >= 16) {
+            ctx.drawItem(stack, x, y);
+            return;
+        }
+        var m = ctx.getMatrices();
+        m.pushMatrix();
+        m.translate(x, y);
+        m.scale(size / 16F, size / 16F);
+        ctx.drawItem(stack, 0, 0);
+        m.popMatrix();
+    }
+
     private void drawRail(DrawContext ctx, Layout l, int mx, int my) {
         int x = l.fx;
         int y = l.bodyY;
         int w = l.railW;
         ctx.fill(x + w, y + 8, x + w + 1, l.footerY - 8, c.borderDim);
-        // COLLECTIONS and EXTRAS work like two tabs: click one to switch
+        // COLLECTIONS and EXTRAS work like two tabs: click one to switch.
+        // A narrow rail (small window, big GUI scale) gets the short name, so EXTRAS always fits.
+        final String first = 12 + textWidth("COLLECTIONS") + 6 + textWidth("EXTRAS") + 10 < w ? "COLLECTIONS" : "STYLES";
         {
-            int cw = textWidth("COLLECTIONS");
+            int cw = textWidth(first);
             boolean hover = inside(mx, my, x + 9, y + 8, cw + 6, 16);
-            text(ctx, "COLLECTIONS", x + 12, y + 12, !extrasView ? c.accent : (hover ? c.text : c.textDim));
+            text(ctx, first, x + 12, y + 12, !extrasView ? c.accent : (hover ? c.text : c.textDim));
             if (!extrasView) {
                 soft(ctx, x + 12, y + 23, cw, 2, c.accent);
             }
@@ -1347,7 +1508,8 @@ public class BaulooStylesConfigScreen extends Screen {
             String label = "EXTRAS";
             int lw = textWidth(label);
             int lx = x + w - 10 - lw;
-            if (lx > x + 12 + textWidth("COLLECTIONS") + 6) {
+            if (lx > x + 12 + textWidth(first) + 6) {
+                tourSpots[4] = new int[]{lx - 4, y + 8, lw + 8, 18};
                 boolean hover = inside(mx, my, lx - 3, y + 8, lw + 6, 16);
                 text(ctx, label, lx, y + 12, extrasView ? c.accent : (hover ? c.text : c.textSoft));
                 if (extrasView) {
@@ -1364,12 +1526,14 @@ public class BaulooStylesConfigScreen extends Screen {
 
 
         int rowY = y + 30;
+        tourSpots[0] = new int[]{x + 4, rowY - 2, w - 8, l.footerY - rowY - 2};
         // Shrink the rows when the window is too short for all collections.
         // every collection plus Cosmetics (and its divider) has to fit above the footer
         // every collection, My Packs, Bauloo's Packs and Cosmetics (plus the divider) has to fit above the footer
         int rows = shownTabs().length + 2 + (MyPacks.shown() ? 1 : 0) + (VipPacks.shown() ? 1 : 0);
         int rowGap = (l.footerY - rowY - 26) / rows < 17 ? 1 : 4;   // short windows: rows closer together
-        int rowH = Math.max(12, Math.min(30, (l.footerY - rowY - 26) / rows - rowGap));
+        // very short windows: rows down to 8 px with smaller icons, so nothing runs out under the footer
+        int rowH = Math.max(8, Math.min(30, (l.footerY - rowY - 26) / rows - rowGap));
         for (Tab t : shownTabs()) {
             int rx = x + 7;
             int rw = w - 14;
@@ -1387,7 +1551,10 @@ public class BaulooStylesConfigScreen extends Screen {
 
             boolean compact = rowH < 30;
             int thumb = compact ? rowH - 6 : 20;
-            drawThumb(ctx, t, rx + 7, rowY + (rowH - thumb) / 2, thumb, rowBg);
+            // always the collection's item here, so every row looks the same (the loadout strip shows the styles)
+            int ty = rowY + (rowH - thumb) / 2;
+            soft(ctx, rx + 7, ty, thumb, thumb, c.surface2);
+            railItem(ctx, icon(t), rx + 7, rowY, rowH, thumb);
 
             String count = String.valueOf(styleCount(t));
             textRight(ctx, count, rx + rw - 7, rowY + (rowH - 8) / 2, selected ? c.accent : c.textDim);
@@ -1428,7 +1595,7 @@ public class BaulooStylesConfigScreen extends Screen {
             }
             int thumb = rowH < 30 ? rowH - 6 : 20;
             soft(ctx, rx + 7, rowY + (rowH - thumb) / 2, thumb, thumb, c.accentDark);
-            ctx.drawItem(new ItemStack(Items.BOOKSHELF), rx + 7 + (thumb - 16) / 2, rowY + (rowH - 16) / 2);
+            railItem(ctx, new ItemStack(Items.BOOKSHELF), rx + 7, rowY, rowH, thumb);
             String count = MyPacks.scanning() ? "..." : String.valueOf(MyPacks.styles().size());
             textRight(ctx, count, rx + rw - 7, rowY + (rowH - 8) / 2, selected ? c.text : c.textDim);
             text(ctx, fitText("My Packs", rw - 34 - textWidth(count) - 14), rx + 34, rowY + (rowH - 8) / 2,
@@ -1462,7 +1629,7 @@ public class BaulooStylesConfigScreen extends Screen {
             }
             int thumb = rowH < 30 ? rowH - 6 : 20;
             soft(ctx, rx + 7, rowY + (rowH - thumb) / 2, thumb, thumb, 0xFF5A4A1C);
-            ctx.drawItem(new ItemStack(Items.ENCHANTED_BOOK), rx + 7 + (thumb - 16) / 2, rowY + (rowH - 16) / 2);
+            railItem(ctx, new ItemStack(Items.ENCHANTED_BOOK), rx + 7, rowY, rowH, thumb);
             VipPacks.refresh(false);   // the count is right before the page was opened (asks at most every 10 minutes)
             String count = VipPacks.loading() && VipPacks.styles().isEmpty() ? "..." : String.valueOf(VipPacks.styles().size());
             textRight(ctx, count, rx + rw - 7, rowY + (rowH - 8) / 2, selected ? c.text : c.textDim);
@@ -1506,9 +1673,9 @@ public class BaulooStylesConfigScreen extends Screen {
             }
             int thumb = rowH < 30 ? rowH - 6 : 20;
             soft(ctx, rx + 7, rowY + (rowH - thumb) / 2, thumb, thumb, c.accentDark);
-            ctx.drawItem(new ItemStack(Items.ELYTRA), rx + 7 + (thumb - 16) / 2, rowY + (rowH - 16) / 2);
+            railItem(ctx, new ItemStack(Items.ELYTRA), rx + 7, rowY, rowH, thumb);
             int worn = 0;
-            for (Cosmetics.Slot slot : Cosmetics.Slot.values()) {
+            for (Cosmetics.Slot slot : Cosmetics.slots()) {
                 if (Cosmetics.valid(slot, Cosmetics.saved(slot))) {
                     worn++;
                 }
@@ -1547,7 +1714,7 @@ public class BaulooStylesConfigScreen extends Screen {
             }
             int thumb = rowH < 30 ? rowH - 6 : 20;
             soft(ctx, rx + 7, rowY + (rowH - thumb) / 2, thumb, thumb, c.accentDark);
-            ctx.drawItem(new ItemStack(Items.WRITABLE_BOOK), rx + 7 + (thumb - 16) / 2, rowY + (rowH - 16) / 2);
+            railItem(ctx, new ItemStack(Items.WRITABLE_BOOK), rx + 7, rowY, rowH, thumb);
             String count = String.valueOf(DrawScreen.count());
             textRight(ctx, count, rx + rw - 7, rowY + (rowH - 8) / 2, c.textDim);
             text(ctx, fitText("My Drawings", rw - 34 - textWidth(count) - 14), rx + 34, rowY + (rowH - 8) / 2,
@@ -1585,7 +1752,9 @@ public class BaulooStylesConfigScreen extends Screen {
             return;
         }
         pageTitle(ctx, tab.title, x, y + 11);
-        if (tab == Tab.SKY && !skyboxifyInstalled) {
+        if (serverBanner(ctx, x, y + 21, w, mx, my)) {
+            // a server pack covers the styles: the banner says so instead of the style count
+        } else if (tab == Tab.SKY && !skyboxifyInstalled) {
             text(ctx, fitText("Skyboxify is required for Sky styles", w / 2), x, y + 24, c.accent);
         } else {
             String part1 = styleCount(tab) + " styles  -  ";
@@ -1822,31 +1991,10 @@ public class BaulooStylesConfigScreen extends Screen {
         }
 
         int labelH = LABEL_H;
-        int baseCols = w >= 500 ? 4 : w >= 290 ? 3 : 2;
-        int cols = baseCols;
-        int cardW = 0;
-        int cardH = 0;
-        boolean fits = false;
-        for (int tryCols = Math.min(baseCols, count); tryCols <= 8; tryCols++) {
-            int cw = (w - (tryCols - 1) * GAP) / tryCols;
-            int[][] spots = place(tryCols);
-            int rows = spots[count - 1][0] + 1;
-            int headersH = spots[count - 1][2] * GROUP_H;
-            int fitH = Math.min(cw * 9 / 10, (h - headersH - (rows - 1) * GAP) / rows - labelH);
-            if (fitH >= 30 && fitH >= cw * 0.55F) {
-                cols = tryCols;
-                cardW = cw;
-                cardH = fitH;
-                fits = true;
-                break;
-            }
-        }
-        if (!fits) {
-            // too many to show at once (My Packs): small cards like a full collection, then scroll
-            cols = myPacksView ? Math.max(baseCols, Math.min(7, w / 56)) : baseCols;
-            cardW = (w - (cols - 1) * GAP) / cols;
-            cardH = Math.max(34, myPacksView ? cardW * 7 / 10 : cardW * 3 / 4);
-        }
+        // the same card size in every collection (about 78 px wide, 5 per row in the normal menu); more styles = scroll
+        int cols = Math.max(2, Math.min(8, (w + GAP) / (CARD_W + GAP)));
+        int cardW = (w - (cols - 1) * GAP) / cols;
+        int cardH = Math.max(34, cardW * 3 / 4);
         int step = cardH + labelH + GAP;
         int[][] spots = place(cols);
         int rows = spots[count - 1][0] + 1;
@@ -1854,6 +2002,13 @@ public class BaulooStylesConfigScreen extends Screen {
         gridMaxScroll = Math.max(0, contentH - h);
         gridScroll = Math.max(0, Math.min(gridScroll, gridMaxScroll));
 
+        // words every name of a collection starts with ("Bauloo Spear ...") are left out of the card names
+        namePrefix.clear();
+        for (int k = 0; k < count; k++) {
+            int index = visible.get(k);
+            String name = entries.get(index)[1];
+            namePrefix.merge(tabOf(index), name, BaulooStylesConfigScreen::commonWords);
+        }
         ctx.enableScissor(x - 2, top - 2, x + w + 2, bottom + 1);
         for (int k = 0; k < count; k++) {
             int index = visible.get(k);
@@ -1877,7 +2032,9 @@ public class BaulooStylesConfigScreen extends Screen {
                         case HOTBAR -> "HOTBARS";
                         case FIRE -> "FIRE";
                         case SKY -> "SKIES";
-                        default -> "ANCHORS";
+                        case ANCHOR -> "ANCHORS";
+                        // everything else (cloud collections too) by its own name
+                        default -> tabOf(index).title.toUpperCase(Locale.ROOT);
                     };
                     text(ctx, title, x, hy, c.accent);
                     int lx = x + textWidth(title) + 6;
@@ -1953,6 +2110,51 @@ public class BaulooStylesConfigScreen extends Screen {
         } else if (scrollDrag == 2) {
             extrasScroll = t * extrasMaxScroll;
         }
+    }
+
+    /** Under the page title: a server resource pack covers your styles - one click puts them on top. */
+    private boolean serverBanner(DrawContext ctx, int x, int y, int w, int mx, int my) {
+        if (!StylesUiConfig.serverPackWarning || !ServerPacks.covering()) {
+            return false;
+        }
+        int warn = 0xFFFF6B3D;
+        soft(ctx, x, y, w, 14, 0xFF3A1A14);
+        softLine(ctx, x, y, w, 14, warn);
+        String btn = "PUT STYLES ON TOP";
+        int bw = textWidth(btn) + 10;
+        int bx = x + w - bw - 2;
+        boolean hover = inside(mx, my, bx, y + 2, bw, 10);
+        text(ctx, fitText("! " + ServerPacks.serverName() + "'s server pack is covering your styles", w - bw - 14), x + 5, y + 3, 0xFFFFD9C9);
+        soft(ctx, bx, y + 2, bw, 10, hover ? 0xFFFF8A60 : warn);
+        text(ctx, btn, bx + 5, y + 3, 0xFF1A1020);
+        hit(bx, y + 2, bw, 10, (b, px, py) -> ServerPacks.putOnTop());
+        return true;
+    }
+
+    /** per collection in the grid: the words all its card names start with (only set when that is two or more cards) */
+    private final Map<Tab, String> namePrefix = new java.util.HashMap<>();
+
+    /** the whole words a and b both start with, with the space after them */
+    private static String commonWords(String a, String b) {
+        int end = 0;
+        int n = Math.min(a.length(), b.length());
+        for (int i = 0; i < n && a.charAt(i) == b.charAt(i); i++) {
+            if (a.charAt(i) == ' ') {
+                end = i + 1;
+            }
+        }
+        return a.substring(0, end);
+    }
+
+    /** the card name without the words the whole collection shares, when something is left */
+    private String shortName(int index) {
+        String name = entries.get(index)[1];
+        String prefix = namePrefix.get(tabOf(index));
+        if (prefix != null && !prefix.isEmpty() && name.length() > prefix.length() && name.startsWith(prefix)) {
+            String rest = name.substring(prefix.length()).trim();
+            return rest.isEmpty() ? name : rest;
+        }
+        return name;
     }
 
     /** height of a group title (Swords / Pickaxes) in the grid */
@@ -2290,7 +2492,7 @@ public class BaulooStylesConfigScreen extends Screen {
         // name row: name on the left, the favorite star on the right
         boolean fav = folder != null && StylesUiConfig.isFavorite(folder);
         int nameW = cardW - 12 - (fav ? 10 : 0);
-        text(ctx, fitText(e[1], nameW), cx + 6, cy + cardH + 5,
+        text(ctx, fitText(shortName(index), nameW), cx + 6, cy + cardH + 5,
                 marked ? PENDING_COLOR : isActive ? c.text : (hover ? c.text : c.textSoft));
         if (fav) {
             text(ctx, "\u2605", cx + cardW - 12, cy + cardH + 5, c.gold);
@@ -2473,10 +2675,12 @@ public class BaulooStylesConfigScreen extends Screen {
         list.add(new ExtraTile("OUTLINE", "Player Outline", "Combat", Items.ARMOR_STAND, "Glow around players"));
         list.add(new ExtraTile("CRYSTAL", "Crystal", "Combat", Items.END_CRYSTAL, "Spin speed and core color"));
         list.add(new ExtraTile("TOTEM", "Totem", "Combat", Items.TOTEM_OF_UNDYING, "Size in hand and pop"));
+        list.add(new ExtraTile("TOTEMPOP", "Totem Pop", "Combat", Items.TOTEM_OF_UNDYING, "Particle style, size, color"));
         list.add(new ExtraTile("SHIELD", "Shield", "Combat", Items.SHIELD, "See-through, size, color"));
         list.add(new ExtraTile("GAP", "Gap", "Combat", Items.GOLDEN_APPLE, "Size in hand"));
         list.add(new ExtraTile("ANCHOR", "Anchor Charge", "Combat", Items.RESPAWN_ANCHOR, "Glow color, look full"));
         list.add(new ExtraTile("KILL", "Kill Effect", "Combat", Items.NETHERITE_SWORD, "Effect and kill sound"));
+        list.add(new ExtraTile("MACE", "Mace Effect", "Combat", Items.MACE, "Effect when your mace smash lands"));
         list.add(new ExtraTile("HITBOX", "Hitbox", "Combat", Items.TARGET, "F3+B box color"));
         list.add(new ExtraTile("CRYSTALBOX", "Crystal Box", "Combat", Items.GLASS, "Box of invisible crystals"));
         list.add(new ExtraTile("COBWEB", "Cobweb", "World", Items.COBWEB, "Outline around cobwebs"));
@@ -2484,6 +2688,8 @@ public class BaulooStylesConfigScreen extends Screen {
         list.add(new ExtraTile("BLOCK", "Block Outline", "World", Items.GRASS_BLOCK, "Color and thickness"));
         list.add(new ExtraTile("CROSSHAIR", "Crosshair", "World", Items.SPYGLASS, "Color and gradient"));
         list.add(new ExtraTile("GLINT", "Enchant Glint", "World", Items.EXPERIENCE_BOTTLE, "Color, gradient, rainbow"));
+        list.add(new ExtraTile("SKYFX", "Sky Effects", "World", Items.NETHER_STAR, "Shooting stars, aurora, comet"));
+        list.add(new ExtraTile("SERVERPACK", "Server Packs", "World", Items.PAINTING, "Styles over server packs"));
         if (SpotifyNowPlaying.AVAILABLE) {
             list.add(new ExtraTile("SPOTIFY", "Spotify", "HUD & Menu", Items.MUSIC_DISC_CAT, "Now playing card"));
         }
@@ -2499,7 +2705,9 @@ public class BaulooStylesConfigScreen extends Screen {
             case "OUTLINE" -> StylesUiConfig.outline;
             case "FIRE" -> pickOn(PICK_FIRE);
             case "COBWEB" -> StylesUiConfig.cobwebOutline;
+            case "SERVERPACK" -> StylesUiConfig.stylesOverServer;
             case "HITBOX" -> pickOn(PICK_HITBOX);
+            case "TOTEMPOP" -> StylesUiConfig.totemPart;
             case "CRYSTALBOX" -> pickOn(PICK_CRYSTAL_BOX);
             case "ANCHOR" -> pickOn(PICK_ANCHOR);
             case "CROSSHAIR" -> pickOn(PICK_CROSSHAIR);
@@ -2517,7 +2725,12 @@ public class BaulooStylesConfigScreen extends Screen {
             case "OUTLINE" -> StylesUiConfig.outline = !StylesUiConfig.outline;
             case "FIRE" -> setPick(PICK_FIRE, !pickOn(PICK_FIRE), null);
             case "COBWEB" -> StylesUiConfig.cobwebOutline = !StylesUiConfig.cobwebOutline;
+            case "SERVERPACK" -> {
+                StylesUiConfig.stylesOverServer = !StylesUiConfig.stylesOverServer;
+                ServerPacks.apply();
+            }
             case "HITBOX" -> setPick(PICK_HITBOX, !pickOn(PICK_HITBOX), null);
+            case "TOTEMPOP" -> StylesUiConfig.totemPart = !StylesUiConfig.totemPart;
             case "CRYSTALBOX" -> setPick(PICK_CRYSTAL_BOX, !pickOn(PICK_CRYSTAL_BOX), null);
             case "ANCHOR" -> setPick(PICK_ANCHOR, !pickOn(PICK_ANCHOR), null);
             case "CROSSHAIR" -> setPick(PICK_CROSSHAIR, !pickOn(PICK_CROSSHAIR), null);
@@ -2551,6 +2764,15 @@ public class BaulooStylesConfigScreen extends Screen {
             case "SHIELD" -> StylesUiConfig.shieldOpacity >= 100 ? "Normal" : StylesUiConfig.shieldOpacity + "%";
             case "GAP" -> percent(StylesUiConfig.gapSize);
             case "SOCIAL" -> Watermark.validSocial(StylesUiConfig.socialLogo) ? "On" : "Off";
+            case "SKYFX" -> SkyEffects.count() == 0 ? "Off" : SkyEffects.count() + " on";
+            case "MACE" -> {
+                for (String[] effect : MaceEffect.EFFECTS) {
+                    if (effect[0].equals(StylesUiConfig.maceEffect)) {
+                        yield effect[1];
+                    }
+                }
+                yield "Off";
+            }
             case "KILL" -> {
                 for (String[] effect : KillEffect.EFFECTS) {
                     if (effect[0].equals(StylesUiConfig.killEffect)) {
@@ -2585,7 +2807,9 @@ public class BaulooStylesConfigScreen extends Screen {
         }
 
         pageTitle(ctx, "Extras", x, y + 11);
-        text(ctx, fitText("Click a tile to change it - the switch turns it on or off", gridW), x, y + 24, c.textDim);
+        if (!serverBanner(ctx, x, y + 21, gridW, mx, my)) {
+            text(ctx, fitText("Click a tile to change it - the switch turns it on or off", gridW), x, y + 24, c.textDim);
+        }
         int chipX = x;
         int chipY = y + 38;
         for (int i = 0; i < EXTRA_GROUPS.length; i++) {
@@ -2945,6 +3169,44 @@ public class BaulooStylesConfigScreen extends Screen {
             y += 22;
 
         }
+        if (want("TOTEMPOP")) {
+            // ---- Totem Pop particles
+            y = sectionHeader(ctx, px, y, pw, "TOTEM POP");
+            y = choiceRow(ctx, px, y, pw, "Style", new String[]{"Vanilla", "Plus"}, StylesUiConfig.totemPartStyle, mx, my,
+                    i -> StylesUiConfig.totemPartStyle = i);
+            y = choiceRow(ctx, px, y, pw, "Amount", new String[]{"Off", "Less", "Mid", "Normal"}, StylesUiConfig.totemPartAmount,
+                    mx, my, i -> StylesUiConfig.totemPartAmount = i);
+            int partSize = StylesUiConfig.totemPartSize;
+            y = sliderRow(ctx, px, y, pw, "Size", partSize == 100 ? "Normal" : partSize + "%",
+                    (partSize - 50) / 150.0F, Drag.TOTEM_PART_SIZE, mx, my, () -> StylesUiConfig.totemPartSize = 100);
+            y = colorPicker(ctx, px, y, pw, mx, my, PICK_TOTEM);
+            y = switchRow(ctx, px, y, pw, "Rainbow", StylesUiConfig.totemPartRainbow, mx, my,
+                    () -> StylesUiConfig.totemPartRainbow = !StylesUiConfig.totemPartRainbow);
+            y = switchRow(ctx, px, y, pw, "Shorter cloud", StylesUiConfig.totemPartShort, mx, my,
+                    () -> StylesUiConfig.totemPartShort = !StylesUiConfig.totemPartShort);
+            scaled(ctx, fitText("Only on your screen", Math.round(pw / 0.8F)), px, y - 4, c.textDim, 0.8F, false);
+            y += 8;
+            boolean popHover = inside(mx, my, px, y - 2, pw, 14);
+            button(ctx, px, y - 2, pw, 14, "TEST POP", popHover, ButtonStyle.NORMAL);
+            hit(px, y - 2, pw, 14, (b, x2, y2) -> {
+                MinecraftClient mc = MinecraftClient.getInstance();
+                if (mc.world != null && mc.player != null) {
+                    mc.setScreen(null);
+                    // in front of the camera: a pop on your own body is mostly out of view in first person
+                    net.minecraft.util.math.Vec3d at = mc.player.getEyePos().add(mc.player.getRotationVector().multiply(2.5));
+                    java.util.Random r = new java.util.Random();
+                    for (int i = 0; i < 60; i++) {
+                        mc.particleManager.addParticle(net.minecraft.particle.ParticleTypes.TOTEM_OF_UNDYING,
+                                at.x + r.nextGaussian() * 0.5, at.y + r.nextGaussian() * 0.5, at.z + r.nextGaussian() * 0.5,
+                                r.nextGaussian() * 0.06, r.nextGaussian() * 0.06 + 0.08, r.nextGaussian() * 0.06);
+                    }
+                    mc.gameRenderer.showFloatingItem(new ItemStack(Items.TOTEM_OF_UNDYING));
+                    reopenAtMs = System.currentTimeMillis() + 2200;
+                }
+            });
+            y += 22;
+
+        }
         if (want("HITBOX")) {
             // ---- Hitbox (F3+B) colours
             y = sectionHeader(ctx, px, y, pw, "HITBOX");
@@ -3173,7 +3435,134 @@ public class BaulooStylesConfigScreen extends Screen {
                 if (mc.world != null) {
                     mc.setScreen(null);
                     KillEffect.test();
-                    reopenAtMs = System.currentTimeMillis() + 2500;
+                    reopenAtMs = System.currentTimeMillis() + KillEffect.testLength();
+                }
+            });
+            y += 22;
+        }
+        if (want("MACE")) {
+            // ---- Mace effect: plays where your smash lands, bigger the higher you fell
+            y = sectionHeader(ctx, px, y, pw, "MACE EFFECT");
+            int chipX = px;
+            int chipH = 12;
+            String[][] effects = new String[MaceEffect.EFFECTS.length + 1][];
+            effects[0] = new String[]{"off", "Off"};
+            System.arraycopy(MaceEffect.EFFECTS, 0, effects, 1, MaceEffect.EFFECTS.length);
+            for (String[] effect : effects) {
+                int cw = textRenderer.getWidth(effect[1]) + 10;
+                if (chipX > px && chipX + cw > px + pw) {
+                    chipX = px;
+                    y += chipH + 4;
+                }
+                boolean chosen = effect[0].equals(StylesUiConfig.maceEffect)
+                        || (effect[0].equals("off") && !MaceEffect.valid(StylesUiConfig.maceEffect));
+                boolean hover = inside(mx, my, chipX, y, cw, chipH);
+                soft(ctx, chipX, y, cw, chipH, chosen ? c.accentDark : c.base);
+                softLine(ctx, chipX, y, cw, chipH, chosen ? c.accent : hover ? c.textDim : c.borderDim);
+                text(ctx, effect[1], chipX + 5, y + 2, chosen ? c.text : hover ? c.textSoft : c.textDim);
+                final String key = effect[0];
+                hit(chipX, y, cw, chipH, (b, x2, y2) -> {
+                    StylesUiConfig.maceEffect = key;
+                    StylesUiConfig.save();
+                });
+                chipX += cw + 4;
+            }
+            y += chipH + 6;
+            scaled(ctx, "Only on your screen. The higher you fall, the bigger it gets.", px, y + 1, c.textDim, 0.75F, false);
+            y += 12;
+            String mace = StylesUiConfig.maceEffect;
+            if (mace.equals("ring") || mace.equals("anime") || mace.equals("gravity")) {
+                int maceSw = Math.max(10, (pw - (PICK_SWATCHES.length - 1) * 4) / PICK_SWATCHES.length);
+                for (int i = 0; i < PICK_SWATCHES.length; i++) {
+                    int sx = px + i * (maceSw + 4);
+                    int swatch = PICK_SWATCHES[i];
+                    boolean selected = (StylesUiConfig.maceColor & 0xFFFFFF) == swatch;
+                    soft(ctx, sx, y, maceSw, 10, 0xFF000000 | swatch);
+                    if (selected || inside(mx, my, sx, y, maceSw, 10)) {
+                        softLine(ctx, sx - 1, y - 1, maceSw + 2, 12, selected ? c.text : c.textDim);
+                    }
+                    hit(sx, y, maceSw, 10, (b, x2, y2) -> {
+                        StylesUiConfig.maceColor = swatch;
+                        StylesUiConfig.save();
+                    });
+                }
+                y += 16;
+            }
+            if (MaceEffect.valid(mace)) {
+                boolean maceTestHover = inside(mx, my, px, y - 2, pw, 14);
+                button(ctx, px, y - 2, pw, 14, "TEST", maceTestHover, ButtonStyle.NORMAL);
+                hit(px, y - 2, pw, 14, (b, x2, y2) -> {
+                    MinecraftClient mc = MinecraftClient.getInstance();
+                    if (mc.world != null) {
+                        mc.setScreen(null);
+                        MaceEffect.test();
+                        reopenAtMs = System.currentTimeMillis() + 2200;
+                    }
+                });
+                y += 22;
+            }
+        }
+        if (want("SERVERPACK")) {
+            // ---- Server packs: your styles above a server's resource pack
+            y = sectionHeader(ctx, px, y, pw, "SERVER PACKS");
+            y = switchRow(ctx, px, y, pw, "Styles on top", StylesUiConfig.stylesOverServer, mx, my, () -> {
+                StylesUiConfig.stylesOverServer = !StylesUiConfig.stylesOverServer;
+                ServerPacks.apply();
+            });
+            scaled(ctx, "Your styles win over the server's pack.", px, y + 1, c.textDim, 0.75F, false);
+            scaled(ctx, "The server pack still loads for everything else.", px, y + 10, c.textDim, 0.75F, false);
+            y += 24;
+            scaled(ctx, "PACK ORDER (TOP WINS)", px, y, c.textDim, 0.75F, false);
+            y += 10;
+            String server = ServerPacks.serverName() + " pack";
+            String[][] order = StylesUiConfig.stylesOverServer
+                    ? new String[][]{{"Your styles", "ON TOP"}, {server, "SERVER"}, {"Your other packs", ""}, {"Vanilla", ""}}
+                    : new String[][]{{server, "SERVER"}, {"Your styles", ""}, {"Your other packs", ""}, {"Vanilla", ""}};
+            for (int i = 0; i < order.length; i++) {
+                boolean styles = order[i][0].equals("Your styles");
+                boolean isServer = order[i][1].equals("SERVER");
+                soft(ctx, px, y, pw, 14, styles ? c.accentDark : isServer ? 0xFF2A1A1A : c.surface);
+                if (styles && StylesUiConfig.stylesOverServer) {
+                    softLine(ctx, px, y, pw, 14, c.accent);
+                }
+                text(ctx, fitText((i + 1) + "  " + order[i][0], pw - 50), px + 5, y + 3, styles ? c.text : c.textSoft);
+                if (!order[i][1].isEmpty()) {
+                    scaled(ctx, order[i][1], px + pw - 5 - scaledWidth(order[i][1], 0.7F), y + 4.5F,
+                            isServer ? 0xFFE0705A : c.accent, 0.7F, false);
+                }
+                y += 17;
+            }
+            y += 2;
+            boolean active = ServerPacks.serverPackActive();
+            String now = !active ? "No server pack right now" : StylesUiConfig.stylesOverServer
+                    ? "Server pack found - styles are on top" : "Server pack is covering your styles";
+            int nowColor = !active ? c.textDim : StylesUiConfig.stylesOverServer ? c.good : 0xFFFF6B3D;
+            soft(ctx, px, y, pw, 14, c.base);
+            soft(ctx, px + 5, y + 5, 4, 4, nowColor);
+            text(ctx, fitText(now, pw - 18), px + 13, y + 3, nowColor);
+            y += 20;
+            y = switchRow(ctx, px, y, pw, "Show warning", StylesUiConfig.serverPackWarning, mx, my,
+                    () -> StylesUiConfig.serverPackWarning = !StylesUiConfig.serverPackWarning);
+            scaled(ctx, "Banner in the menu when a server pack covers your styles", px, y + 1, c.textDim, 0.75F, false);
+            y += 16;
+        }
+        if (want("SKYFX")) {
+            // ---- Sky effects: one switch each, a preview at night
+            y = sectionHeader(ctx, px, y, pw, "SKY EFFECTS");
+            for (String[] fx : SkyEffects.EFFECTS) {
+                final String key = fx[0];
+                y = switchRow(ctx, px, y, pw, fx[1], SkyEffects.on(key), mx, my, () -> SkyEffects.toggle(key));
+            }
+            scaled(ctx, "Only at night and without heavy rain", px, y + 1, c.textDim, 0.75F, false);
+            y += 12;
+            boolean skyHover = inside(mx, my, px, y - 2, pw, 14);
+            button(ctx, px, y - 2, pw, 14, "PREVIEW AT NIGHT", skyHover, ButtonStyle.NORMAL);
+            hit(px, y - 2, pw, 14, (b, x2, y2) -> {
+                MinecraftClient mc = MinecraftClient.getInstance();
+                if (mc.world != null) {
+                    mc.setScreen(null);
+                    SkyEffects.preview();
+                    reopenAtMs = System.currentTimeMillis() + SkyEffects.previewLength();
                 }
             });
             y += 22;
@@ -3242,6 +3631,7 @@ public class BaulooStylesConfigScreen extends Screen {
     private static final int PICK_FIRE = 7;
     private static final int PICK_SHIELD = 8;
     private static final int PICK_BLOCK = 9;
+    private static final int PICK_TOTEM = 10;
     /** block outline: black first, that is the look most people want */
     private static final int[] BLOCK_SWATCHES = {0x000000, 0xB388FF, 0xFF5AC8, 0xFF4A5A, 0xFFB547, 0x6CFF8A, 0x75D4FF, 0xFFFFFF};
 
@@ -3255,6 +3645,7 @@ public class BaulooStylesConfigScreen extends Screen {
             case PICK_FIRE -> StylesUiConfig.fireCustom;
             case PICK_SHIELD -> StylesUiConfig.shieldCustom;
             case PICK_BLOCK -> StylesUiConfig.blockOutlineCustom;
+            case PICK_TOTEM -> StylesUiConfig.totemPartCustom;
             default -> StylesUiConfig.crystalBoxCustom;
         };
     }
@@ -3269,6 +3660,7 @@ public class BaulooStylesConfigScreen extends Screen {
             case PICK_FIRE -> StylesUiConfig.fireColor;
             case PICK_SHIELD -> StylesUiConfig.shieldColor;
             case PICK_BLOCK -> StylesUiConfig.blockOutlineColor;
+            case PICK_TOTEM -> StylesUiConfig.totemPartColor;
             default -> StylesUiConfig.crystalBoxColor;
         };
     }
@@ -3336,6 +3728,13 @@ public class BaulooStylesConfigScreen extends Screen {
                 if (on != null) StylesUiConfig.blockOutlineCustom = on;
                 if (color != null) StylesUiConfig.blockOutlineColor = color;
             }
+            case PICK_TOTEM -> {
+                if (on != null) StylesUiConfig.totemPartCustom = on;
+                if (color != null) {
+                    StylesUiConfig.totemPartColor = color;
+                    StylesUiConfig.totemPartRainbow = false;
+                }
+            }
             default -> {
                 if (on != null) StylesUiConfig.crystalBoxCustom = on;
                 if (color != null) StylesUiConfig.crystalBoxColor = color;
@@ -3367,6 +3766,8 @@ public class BaulooStylesConfigScreen extends Screen {
             drawShieldPreview(ctx, px, y, box);
         } else if (kind == PICK_BLOCK) {
             drawBlockOutlinePreview(ctx, px, y, box, on);
+        } else if (kind == PICK_TOTEM) {
+            drawTotemParticlePreview(ctx, px, y, box);
         } else {
             drawBoxPreview(ctx, px, y, box, shown);
         }
@@ -3413,6 +3814,66 @@ public class BaulooStylesConfigScreen extends Screen {
             updateDrag(x2);
         });
         return y + box + 12;
+    }
+
+    /** Label on one line, the options as buttons below; the picked one is lit. */
+    private int choiceRow(DrawContext ctx, int px, int y, int pw, String label, String[] options, int selected,
+            int mx, int my, java.util.function.IntConsumer pick) {
+        text(ctx, fitText(label, pw), px, y, c.textSoft);
+        y += 12;
+        int gap = 3;
+        int bw = (pw - gap * (options.length - 1)) / options.length;
+        int bh = 14;
+        for (int i = 0; i < options.length; i++) {
+            int bx = px + i * (bw + gap);
+            boolean hover = inside(mx, my, bx, y, bw, bh);
+            button(ctx, bx, y, bw, bh, options[i], hover, i == selected ? ButtonStyle.PRIMARY : ButtonStyle.NORMAL);
+            final int index = i;
+            hit(bx, y, bw, bh, (b, x2, y2) -> {
+                pick.accept(index);
+                StylesUiConfig.save();
+            });
+        }
+        return y + bh + 8;
+    }
+
+    /** where the preview particles sit (x, y as part of the box) and how big they are */
+    private static final float[][] TOTEM_DOTS = {
+            {0.20F, 0.30F, 1.0F}, {0.62F, 0.18F, 0.6F}, {0.80F, 0.55F, 0.9F}, {0.38F, 0.70F, 0.7F},
+            {0.15F, 0.82F, 0.5F}, {0.55F, 0.45F, 1.0F}, {0.86F, 0.86F, 0.6F}, {0.33F, 0.12F, 0.5F},
+            {0.70F, 0.75F, 0.8F}, {0.48F, 0.92F, 0.6F}, {0.10F, 0.55F, 0.7F}, {0.90F, 0.25F, 0.5F}};
+    private static final int[] VANILLA_TOTEM = {0x6CE84A, 0xB4E23A, 0x4CC94C, 0xE8E04A, 0x8FE86A, 0x5FD24E};
+
+    /** The pop cloud with the picked style, amount, size and colour, slowly rising. */
+    private void drawTotemParticlePreview(DrawContext ctx, int x, int y, int size) {
+        net.minecraft.client.texture.Sprite sprite = StylesUiConfig.totemPartStyle == 1 ? TotemParticles.plusSprite()
+                : MinecraftClient.getInstance().getAtlasManager().getSprite(new net.minecraft.client.util.SpriteIdentifier(
+                        net.minecraft.client.texture.SpriteAtlasTexture.PARTICLE_ATLAS_TEXTURE, Identifier.ofVanilla("glitter_2")));
+        float[] share = {0.0F, 0.25F, 0.5F, 1.0F};
+        int count = Math.round(TOTEM_DOTS.length * share[Math.max(0, Math.min(3, StylesUiConfig.totemPartAmount))]);
+        long now = System.currentTimeMillis();
+        int inner = size - 8;
+        ctx.enableScissor(x + 1, y + 1, x + size - 1, y + size - 1);
+        for (int i = 0; i < count; i++) {
+            float[] d = TOTEM_DOTS[i];
+            float rise = ((now / 30 + i * 37L) % 1000) / 1000.0F;
+            int s = Math.max(3, Math.round((6 + d[2] * 6) * StylesUiConfig.totemPartSize / 100.0F));
+            int cx = x + 4 + Math.round(d[0] * inner);
+            int cy = y + 4 + Math.round(((d[1] - rise * 0.35F + 1) % 1) * inner);
+            int rgb;
+            if (StylesUiConfig.totemPartRainbow) {
+                rgb = StylesTheme.hsv((i * 0.13F + now / 3000.0F) % 1, 0.75F, 1.0F) & 0xFFFFFF;
+            } else if (StylesUiConfig.totemPartCustom) {
+                float shade = 1.0F - (i % 3) * 0.12F;
+                int col = StylesUiConfig.totemPartColor;
+                rgb = Math.round(((col >> 16) & 0xFF) * shade) << 16 | Math.round(((col >> 8) & 0xFF) * shade) << 8
+                        | Math.round((col & 0xFF) * shade);
+            } else {
+                rgb = VANILLA_TOTEM[i % VANILLA_TOTEM.length];
+            }
+            ctx.drawSpriteStretched(RenderPipelines.GUI_TEXTURED, sprite, cx - s / 2, cy - s / 2, s, s, 0xFF000000 | rgb);
+        }
+        ctx.disableScissor();
     }
 
     /** The burning fire itself, as the block atlas shows it right now (recoloured live). */
@@ -3739,10 +4200,14 @@ public class BaulooStylesConfigScreen extends Screen {
         int gx = left + pw + 12;
         int gw = right - gx;
         int sy = y0;
-        int slots = Cosmetics.Slot.values().length;
+        Cosmetics.Slot[] shownSlots = Cosmetics.slots();
+        int slots = shownSlots.length;
         int slotW = (gw - (slots - 1) * 6) / slots;
+        if (cosSlot.ordinal() >= 0 && !java.util.Arrays.asList(shownSlots).contains(cosSlot)) {
+            cosSlot = Cosmetics.Slot.CAPE;
+        }
         for (int i = 0; i < slots; i++) {
-            Cosmetics.Slot slot = Cosmetics.Slot.values()[i];
+            Cosmetics.Slot slot = shownSlots[i];
             int sx = gx + i * (slotW + 6);
             boolean on = slot == cosSlot;
             boolean hover = inside(mx, my, sx, sy, slotW, 26);
@@ -3754,7 +4219,10 @@ public class BaulooStylesConfigScreen extends Screen {
             String worn = Cosmetics.label(slot, Cosmetics.saved(slot));
             scaled(ctx, fitText(worn, Math.round((slotW - 8) / 0.75F)), sx + 6, sy + 15,
                     "None".equals(worn) ? c.textDim : c.accentBright, 0.75F, false);
-            hit(sx, sy, slotW, 26, (b, px, py) -> cosSlot = slot);
+            hit(sx, sy, slotW, 26, (b, px, py) -> {
+                cosSlot = slot;
+                cosScroll = 0;
+            });
         }
 
         // ---- cards: None first, then every cosmetic of the slot
@@ -3767,27 +4235,41 @@ public class BaulooStylesConfigScreen extends Screen {
         int cols = gw >= 420 ? 5 : gw >= 300 ? 4 : 3;
         int cw;
         int ch;
-        // add columns until every card fits (the Mojang capes are many)
+        // add columns until every card fits; past 7 columns the cards stay readable and the grid scrolls
         while (true) {
             cw = (gw - (cols - 1) * gap) / cols;
             int rows = (items.length + 1 + cols - 1) / cols;
             ch = Math.min(cw - 10, (cardsBottom - cardsTop - (rows - 1) * gap) / rows - 11);
-            if (ch >= 30 || cols >= 9) {
+            if (ch >= 30 || cols >= 7) {
                 break;
             }
             cols++;
         }
-        ch = Math.max(24, ch);
+        ch = Math.max(30, Math.min(cw - 10, ch));
+        int rowsAll = (items.length + 1 + cols - 1) / cols;
+        cosLeft = gx;
+        cosRight = gx + gw;
+        cosTop = cardsTop;
+        cosBottom = cardsBottom;
+        cosMaxScroll = Math.max(0, rowsAll * (ch + 11 + gap) - gap - (cardsBottom - cardsTop));
+        cosScroll = Math.max(0, Math.min(cosMaxScroll, cosScroll));
+        ctx.enableScissor(gx - 2, cardsTop - 2, gx + gw + 2, cardsBottom + 2);
         String saved = Cosmetics.saved(cosSlot);
         for (int i = 0; i <= items.length; i++) {
             String key = i == 0 ? "none" : items[i - 1][0];
             String label = i == 0 ? "None" : items[i - 1][1];
             int cx = gx + (i % cols) * (cw + gap);
-            int cy = cardsTop + (i / cols) * (ch + 11 + gap);
-            if (cy + ch > cardsBottom + 4) {
+            int cy = cardsTop + (i / cols) * (ch + 11 + gap) - (int) cosScroll;
+            if (cy + ch + 11 < cardsTop) {
+                continue;
+            }
+            if (cy > cardsBottom) {
                 break;
             }
-            boolean hover = inside(mx, my, cx, cy, cw, ch + 11);
+            // only the part of the card inside the grid reacts to the mouse
+            int hy0 = Math.max(cy, cardsTop);
+            int hy1 = Math.min(cy + ch + 11, cardsBottom);
+            boolean hover = hy1 > hy0 && inside(mx, my, cx, hy0, cw, hy1 - hy0);
             boolean worn = key.equals(saved) || (i == 0 && !Cosmetics.valid(cosSlot, saved));
             soft(ctx, cx, cy, cw, ch, hover ? c.surfaceHover : c.surface);
             if (i == 0) {
@@ -3806,7 +4288,17 @@ public class BaulooStylesConfigScreen extends Screen {
                 Cosmetics.tryOn(cosSlot, key);
             }
             final Cosmetics.Slot slot = cosSlot;
-            hit(cx, cy, cw, ch + 11, (b, px, py) -> Cosmetics.save(slot, key));
+            if (hy1 > hy0) {
+                hit(cx, hy0, cw, hy1 - hy0, (b, px, py) -> Cosmetics.save(slot, key));
+            }
+        }
+        ctx.disableScissor();
+        if (cosMaxScroll > 0) {
+            // a thin bar on the right: where in the list you are
+            int trackH = cardsBottom - cardsTop;
+            int barH = Math.max(14, Math.round(trackH * trackH / (float) (trackH + cosMaxScroll)));
+            int barY = cardsTop + Math.round((trackH - barH) * (float) (cosScroll / cosMaxScroll));
+            soft(ctx, gx + gw + 3, barY, 2, barH, c.textDim);
         }
 
         // ---- colour and options
@@ -4830,6 +5322,265 @@ public class BaulooStylesConfigScreen extends Screen {
         hit(x + 16 + half, by, half, 20, (b, x2, y2) -> whatsNew = null);
     }
 
+    /** Ask Bauloo AI: the chat window over the menu. */
+    private void drawAi(DrawContext ctx, int mx, int my) {
+        hits.clear();
+        tooltip = null;
+        ctx.fill(0, 0, width, height, 0xB0000000);
+        int w = Math.min(340, width - 16);
+        int h = Math.min(height - 16, 300);
+        int x = (width - w) / 2;
+        int y = (height - h) / 2;
+        soft(ctx, x, y, w, h, c.surface);
+        softLine(ctx, x, y, w, h, c.accent);
+        text(ctx, "Ask Bauloo AI", x + 12, y + 10, c.accent);
+        int bw = scaledWidth("BETA", 0.7F) + 8;
+        soft(ctx, x + 18 + textWidth("Ask Bauloo AI"), y + 9, bw, 10, c.surface2);
+        scaled(ctx, "BETA", x + 22 + textWidth("Ask Bauloo AI"), y + 11.5F, c.textSoft, 0.7F, false);
+        AiHelp.load();
+        AiHelp.refreshLeft();
+        boolean xh = inside(mx, my, x + w - 18, y + 6, 12, 12);
+        text(ctx, "x", x + w - 15, y + 8, xh ? c.text : c.textDim);
+        hit(x + w - 18, y + 6, 12, 12, (b, px, py) -> aiOpen = false);
+        if (!AiHelp.MESSAGES.isEmpty()) {
+            // CLEAR: start a new chat
+            int cw = scaledWidth("CLEAR", 0.8F) + 8;
+            int clx = x + w - 24 - cw;
+            boolean ch = inside(mx, my, clx, y + 7, cw, 11);
+            scaled(ctx, "CLEAR", clx + 4, y + 9.5F, ch ? c.text : c.textDim, 0.8F, false);
+            hit(clx, y + 7, cw, 11, (b, px, py) -> AiHelp.clear());
+        }
+        ctx.fill(x + 8, y + 24, x + w - 8, y + 25, c.borderDim);
+
+        // the chat, newest at the bottom: lay out from the end until the space is full
+        int top = y + 30;
+        int bottom = y + h - 78;
+        int maxText = w - 60;
+        List<String[]> shown = new ArrayList<>();
+        if (AiHelp.MESSAGES.isEmpty()) {
+            shown.add(new String[]{"ai", "Hi! Ask me anything about Bauloo Styles."});
+        }
+        shown.addAll(AiHelp.MESSAGES);
+        if (AiHelp.waiting()) {
+            shown.add(new String[]{"ai", "Bauloo AI is typing" + ".".repeat((int) (System.currentTimeMillis() / 400 % 3) + 1)});
+        }
+        if (shown.size() != aiSeen) {
+            // a new message: back down to the newest one
+            aiSeen = shown.size();
+            aiScroll = 0;
+        }
+        int total = 0;
+        List<java.util.List<String>> wrapped = new ArrayList<>();
+        for (String[] m : shown) {
+            java.util.List<String> lines = wrap(m[1], maxText, 1.0F);
+            wrapped.add(lines);
+            total += lines.size() * 10 + 8 + 5;
+        }
+        aiMaxScroll = Math.max(0, total - (bottom - top));
+        aiScroll = Math.max(0, Math.min(aiMaxScroll, aiScroll));
+        int cy = bottom + aiScroll;
+        for (int i = shown.size() - 1; i >= 0 && cy > top; i--) {
+            boolean me = "me".equals(shown.get(i)[0]);
+            java.util.List<String> lines = wrapped.get(i);
+            int lw = 0;
+            for (String line : lines) {
+                lw = Math.max(lw, textWidth(line));
+            }
+            int bh = lines.size() * 10 + 8;
+            int bx = me ? x + w - 12 - lw - 12 : x + 12;
+            int by = cy - bh;
+            cy = by - 5;
+            // only whole bubbles inside the chat area
+            if (by < top || by + bh > bottom) {
+                continue;
+            }
+            soft(ctx, bx, by, lw + 12, bh, me ? c.accentDark : c.surface2);
+            for (int k = 0; k < lines.size(); k++) {
+                text(ctx, lines.get(k), bx + 6, by + 5 + k * 10, me ? c.text : c.textSoft);
+            }
+        }
+
+        if (aiMaxScroll > 0) {
+            // a thin bar on the right: where you are in the chat
+            int barH = bottom - top;
+            int knob = Math.max(12, barH * barH / (barH + aiMaxScroll));
+            int ky = top + (barH - knob) * (aiMaxScroll - aiScroll) / aiMaxScroll;
+            ctx.fill(x + w - 6, top, x + w - 4, bottom, c.borderDim);
+            ctx.fill(x + w - 6, ky, x + w - 4, ky + knob, c.accent);
+        }
+
+        // quick questions
+        int qy = y + h - 72;
+        int qx = x + 12;
+        for (String q : AiHelp.QUICK) {
+            int qw = textWidth(q) + 10;
+            if (qx + qw > x + w - 12) {
+                break;
+            }
+            boolean qh = inside(mx, my, qx, qy, qw, 13);
+            soft(ctx, qx, qy, qw, 13, qh ? c.surfaceHover : c.base);
+            softLine(ctx, qx, qy, qw, 13, c.borderDim);
+            text(ctx, q, qx + 5, qy + 3, qh ? c.text : c.textSoft);
+            hit(qx, qy, qw, 13, (b, px, py) -> AiHelp.ask(q));
+            qx += qw + 4;
+        }
+
+        // input + send
+        int iy = y + h - 52;
+        int iw = w - 24 - 46;
+        soft(ctx, x + 12, iy, iw, 16, c.base);
+        softLine(ctx, x + 12, iy, iw, 16, c.accent);
+        String shownInput = aiInput.isEmpty() ? "Type a question ..." : aiInput;
+        String visible = textRenderer.trimToWidth(new StringBuilder(shownInput).reverse().toString(), iw - 12);
+        visible = new StringBuilder(visible).reverse().toString();
+        boolean caret = (System.currentTimeMillis() / 500) % 2 == 0;
+        text(ctx, visible + (!aiInput.isEmpty() && caret ? "_" : ""), x + 17, iy + 4, aiInput.isEmpty() ? c.textDim : c.text);
+        int sx = x + w - 12 - 42;
+        boolean sh = inside(mx, my, sx, iy, 42, 16);
+        button(ctx, sx, iy, 42, 16, "SEND", sh, AiHelp.waiting() ? ButtonStyle.DISABLED : ButtonStyle.PRIMARY);
+        hit(sx, iy, 42, 16, (b, px, py) -> sendAi());
+
+        // daily limit and the way out
+        int fy = y + h - 26;
+        int left = AiHelp.left();
+        String limit = left < 0 ? AiHelp.PER_DAY + " questions a day" : left + " / " + AiHelp.PER_DAY + " questions left today";
+        scaled(ctx, limit, x + 12, fy + 4, c.textDim, 0.8F, false);
+        String ticket = "OPEN A TICKET";
+        int tw = textWidth(ticket) + 14;
+        int tx = x + w - 12 - tw;
+        boolean th = inside(mx, my, tx, fy, tw, 14);
+        button(ctx, tx, fy, tw, 14, ticket, th, ButtonStyle.NORMAL);
+        hit(tx, fy, tw, 14, (b, px, py) ->
+                net.minecraft.client.gui.screen.ConfirmLinkScreen.open(this, "https://discord.gg/bauloo", true));
+    }
+
+    private void sendAi() {
+        if (!AiHelp.waiting() && aiInput.trim().length() >= 2) {
+            AiHelp.ask(aiInput);
+            aiInput = "";
+        }
+    }
+
+    /** Starts the tour on the collections page, where every step can be seen. */
+    private void startTour() {
+        tourStep = 0;
+        extrasView = false;
+        cosmeticsView = false;
+        publicView = false;
+        presetsView = false;
+        compactThemes = false;
+        myPacksView = false;
+        vipView = false;
+        searchFocused = false;
+    }
+
+    private void endTour() {
+        tourStep = -1;
+        if (!StylesUiConfig.tourSeen) {
+            StylesUiConfig.tourSeen = true;
+            StylesUiConfig.save();
+        }
+    }
+
+    private void tourNext() {
+        tourStep++;
+        while (tourStep < TOUR.length && tourSpots[tourStep] == null) {
+            tourStep++;
+        }
+        if (tourStep >= TOUR.length) {
+            endTour();
+        }
+    }
+
+    private void tourBack() {
+        int s = tourStep - 1;
+        while (s >= 0 && tourSpots[s] == null) {
+            s--;
+        }
+        if (s >= 0) {
+            tourStep = s;
+        }
+    }
+
+    /** One tour step: everything dark except the part it explains, and a card next to it. */
+    private void drawTour(DrawContext ctx, int mx, int my) {
+        // a step whose part is not on screen (narrow window) is left out
+        while (tourStep < TOUR.length && tourSpots[tourStep] == null) {
+            tourStep++;
+        }
+        if (tourStep >= TOUR.length) {
+            endTour();
+            return;
+        }
+        hits.clear();
+        tooltip = null;
+        int[] s = tourSpots[tourStep];
+        int sx = s[0], sy = s[1], sw = s[2], sh = s[3];
+        int dim = 0xB4000000;
+        ctx.fill(0, 0, width, sy, dim);
+        ctx.fill(0, sy + sh, width, height, dim);
+        ctx.fill(0, sy, sx, sy + sh, dim);
+        ctx.fill(sx + sw, sy, width, sy + sh, dim);
+        softLine(ctx, sx - 1, sy - 1, sw + 2, sh + 2, (c.accent & 0xFFFFFF) | 0x50000000);
+        softLine(ctx, sx, sy, sw, sh, c.accent);
+
+        String[] step = TOUR[tourStep];
+        int cw = Math.min(210, width - 16);
+        java.util.List<String> body = wrap(step[1], cw - 20, 1.0F);
+        int ch = 44 + body.size() * 10 + 26;
+        // next to the spot: right, left, below or above - whatever fits
+        int cx;
+        int cy;
+        if (sw > width / 3 && sh > height / 3) {
+            // a big spot (the style grid): the card sits inside it
+            cx = sx + 20;
+            cy = sy + sh / 3;
+        } else if (sx + sw + 10 + cw < width - 6) {
+            cx = sx + sw + 10;
+            cy = sy + Math.min(30, Math.max(0, sh - ch));
+        } else if (sx - 10 - cw > 6) {
+            cx = sx - 10 - cw;
+            cy = sy + Math.min(30, Math.max(0, sh - ch));
+        } else if (sy + sh + 10 + ch < height - 6) {
+            cx = sx;
+            cy = sy + sh + 10;
+        } else {
+            cx = sx;
+            cy = sy - 10 - ch;
+        }
+        cx = Math.max(6, Math.min(width - cw - 6, cx));
+        cy = Math.max(6, Math.min(height - ch - 6, cy));
+        soft(ctx, cx, cy, cw, ch, c.surface);
+        softLine(ctx, cx, cy, cw, ch, c.accent);
+        scaled(ctx, (tourStep + 1) + " / " + TOUR.length, cx + 10, cy + 8, c.textDim, 0.75F, false);
+        text(ctx, fitText(step[0], cw - 20), cx + 10, cy + 19, c.accent);
+        for (int i = 0; i < body.size(); i++) {
+            text(ctx, body.get(i), cx + 10, cy + 34 + i * 10, c.textSoft);
+        }
+        int by = cy + ch - 21;
+        for (int i = 0; i < TOUR.length; i++) {
+            ctx.fill(cx + 10 + i * 7, by + 6, cx + 14 + i * 7, by + 10, i == tourStep ? c.accent : c.borderStrong);
+        }
+        boolean last = tourStep == TOUR.length - 1;
+        String nextLabel = last ? "DONE" : "NEXT";
+        int nw = textWidth(nextLabel) + 16;
+        int nx = cx + cw - 10 - nw;
+        button(ctx, nx, by, nw, 15, nextLabel, inside(mx, my, nx, by, nw, 15), ButtonStyle.PRIMARY);
+        hit(nx, by, nw, 15, (b, px, py) -> tourNext());
+        int bx = nx;
+        if (tourStep > 0) {
+            int bw = textWidth("BACK") + 14;
+            bx = nx - 4 - bw;
+            button(ctx, bx, by, bw, 15, "BACK", inside(mx, my, bx, by, bw, 15), ButtonStyle.NORMAL);
+            hit(bx, by, bw, 15, (b, px, py) -> tourBack());
+        }
+        int kw = textWidth("SKIP") + 8;
+        int kx = bx - 6 - kw;
+        boolean kh = inside(mx, my, kx, by, kw, 15);
+        text(ctx, "SKIP", kx + 4, by + 4, kh ? c.text : c.textDim);
+        hit(kx, by, kw, 15, (b, px, py) -> endTour());
+    }
+
     /** "Are you sure?" for the RESET button: two plain choices, cancel is the safe one. */
     private void drawResetAsk(DrawContext ctx, int mx, int my) {
         hits.clear();
@@ -4983,6 +5734,36 @@ public class BaulooStylesConfigScreen extends Screen {
 
         ctx.enableScissor(px - 2, top, px + pw + 2, bottom);
 
+        if (StylesUploadServer.ownerFeatures()) {
+        text(ctx, "LAYOUT", px, y, c.textDim);
+        y += 13;
+            int lw = (pw - 4) / 2;
+            String[][] layouts = {{"Classic", "false"}, {"World", "true"}};
+            for (int i = 0; i < layouts.length; i++) {
+                boolean world = Boolean.parseBoolean(layouts[i][1]);
+                int lx = px + i * (lw + 4);
+                boolean selected = StylesUiConfig.worldMenu == world;
+                boolean hover = inside(mx, my, lx, y, lw, 15) && my >= clipTop && my < clipBottom;
+                soft(ctx, lx, y, lw, 15, selected ? c.surface2 : (hover ? c.surfaceHover : c.base));
+                if (selected) {
+                    softLine(ctx, lx, y, lw, 15, c.accentDark);
+                }
+                text(ctx, layouts[i][0], lx + (lw - textWidth(layouts[i][0])) / 2, y + 4, selected ? c.text : c.textSoft);
+                hits.add(new Hit(lx, y, lw, 15, clipTop, clipBottom, (b, x2, y2) -> {
+                    StylesUiConfig.worldMenu = world;
+                    StylesUiConfig.save();
+                    if (world) {
+                        WorldMenu.open();
+                    } else {
+                        WorldMenu.close();
+                    }
+                }));
+            }
+            y += 18;
+            scaled(ctx, "World: you from the front, blocks beside you", px, y, c.textDim, 0.7F, false);
+            y += 12;
+        }
+
         text(ctx, "PRESET", px, y, c.textDim);
         y += 13;
         int presetW = (pw - 4) / 2;
@@ -5093,8 +5874,10 @@ public class BaulooStylesConfigScreen extends Screen {
         int uploadsW = textWidth("UPLOAD") + 16;
         button(ctx, x, by, uploadsW, bh, "UPLOAD", inside(mx, my, x, by, uploadsW, bh), ButtonStyle.NORMAL);
         hit(x, by, uploadsW, bh, (b, px, py) -> StylesUploadServer.open());
+        tourSpots[3] = new int[]{x - 2, by - 2, uploadsW + 4, bh + 4};
         x += uploadsW + 6;
         int presetsW = textWidth("PRESETS") + 16;
+        tourSpots[5] = new int[]{x - 2, by - 2, presetsW + 4, bh + 4};
         button(ctx, x, by, presetsW, bh, "PRESETS", inside(mx, my, x, by, presetsW, bh),
                 publicView ? ButtonStyle.PRIMARY : ButtonStyle.NORMAL);
         hit(x, by, presetsW, bh, (b, px, py) -> {
@@ -5171,8 +5954,8 @@ public class BaulooStylesConfigScreen extends Screen {
             }
         }
 
-        // early access switch in plain sight (only bauloo while he tests it): gold when on
-        if (VipPacks.admin()) {
+        // early access switch in plain sight for every VIP rank (VIP, Media, Uploader, Admin): gold when on
+        if (VipPacks.shown()) {
             boolean on = StylesUiConfig.earlyAccess;
             String ea = on ? "EARLY ACCESS ON" : "EARLY ACCESS OFF";
             int eaW = textWidth(ea) + 16;
@@ -5283,6 +6066,8 @@ public class BaulooStylesConfigScreen extends Screen {
             StylesUiConfig.killVolume = Math.round((5 + t * 95) / 5.0F) * 5;
         } else if (drag == Drag.TOTEM_POP) {
             StylesUiConfig.totemPopSize = Math.round((20 + t * 130) / 5.0F) * 5;
+        } else if (drag == Drag.TOTEM_PART_SIZE) {
+            StylesUiConfig.totemPartSize = Math.round((50 + t * 150) / 5.0F) * 5;
         } else if (drag == Drag.CRYSTAL_SPIN) {
             StylesUiConfig.crystalSpin = Math.round(t * 1000 / 10.0F) * 10;
         } else if (drag == Drag.SHIELD_SIZE) {
@@ -5356,7 +6141,8 @@ public class BaulooStylesConfigScreen extends Screen {
 
     @Override
     public void renderBackground(DrawContext ctx, int mouseX, int mouseY, float delta) {
-        if (!liveDrag()) {
+        // World theme: no blur, the world stays sharp next to the menu
+        if (!liveDrag() && !WorldMenu.active()) {
             super.renderBackground(ctx, mouseX, mouseY, delta);
         }
     }
@@ -5506,6 +6292,10 @@ public class BaulooStylesConfigScreen extends Screen {
         if (zoomFolder != null) {
             return true;
         }
+        if (aiOpen) {
+            aiScroll = (int) Math.max(0, Math.min(aiMaxScroll, aiScroll + verticalAmount * 20));
+            return true;
+        }
         if (publicView && mouseX >= publicLeft && mouseX < publicRight && mouseY >= publicTop && mouseY < publicBottom) {
             publicScroll = Math.max(0, Math.min(publicMaxScroll, publicScroll - verticalAmount * 18));
             return true;
@@ -5522,6 +6312,10 @@ public class BaulooStylesConfigScreen extends Screen {
         if (mouseX >= themeLeft && mouseX < themeRight + 8 && mouseY >= themeTop && mouseY < themeBottom
                 && themeMaxScroll > 0 && ((StylesUiConfig.themesTab && !presetsView) || compactThemes)) {
             themeScroll = Math.max(0, Math.min(themeMaxScroll, themeScroll - verticalAmount * 18));
+            return true;
+        }
+        if (cosmeticsView && mouseX >= cosLeft && mouseX < cosRight + 8 && mouseY >= cosTop && mouseY < cosBottom && cosMaxScroll > 0) {
+            cosScroll = Math.max(0, Math.min(cosMaxScroll, cosScroll - verticalAmount * 24));
             return true;
         }
         if (mouseX >= gridLeft && mouseX < gridRight + 8 && mouseY >= gridTop && mouseY < gridBottom && gridMaxScroll > 0) {
@@ -5544,6 +6338,30 @@ public class BaulooStylesConfigScreen extends Screen {
             if (key == GLFW.GLFW_KEY_ESCAPE) {
                 zoomFolder = null;
                 zoomName = null;
+            }
+            return true;
+        }
+        if (aiOpen && tourStep < 0 && whatsNew == null && updateAsk == null) {
+            boolean ctrl = (input.modifiers() & GLFW.GLFW_MOD_CONTROL) != 0;
+            if (key == GLFW.GLFW_KEY_ESCAPE) {
+                aiOpen = false;
+            } else if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_KP_ENTER) {
+                sendAi();
+            } else if (key == GLFW.GLFW_KEY_BACKSPACE && !aiInput.isEmpty()) {
+                aiInput = aiInput.substring(0, aiInput.length() - 1);
+            } else if (ctrl && key == GLFW.GLFW_KEY_V) {
+                String pasted = MinecraftClient.getInstance().keyboard.getClipboard().replaceAll("[\\r\\n\\t]", " ");
+                aiInput = (aiInput + pasted).substring(0, Math.min(300, aiInput.length() + pasted.length()));
+            }
+            return true;
+        }
+        if (tourStep >= 0 && whatsNew == null && updateAsk == null) {
+            if (key == GLFW.GLFW_KEY_ESCAPE) {
+                endTour();
+            } else if (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_RIGHT || key == GLFW.GLFW_KEY_SPACE) {
+                tourNext();
+            } else if (key == GLFW.GLFW_KEY_LEFT) {
+                tourBack();
             }
             return true;
         }
@@ -5654,6 +6472,12 @@ public class BaulooStylesConfigScreen extends Screen {
             return false;
         }
         String typed = input.asString();
+        if (aiOpen) {
+            if (aiInput.length() < 300) {
+                aiInput += typed;
+            }
+            return true;
+        }
         if (searchFocused) {
             if (query.length() < 24) {
                 query += typed;
@@ -5701,6 +6525,7 @@ public class BaulooStylesConfigScreen extends Screen {
     public void removed() {
         Cosmetics.tryOn(null, null);
         thirdPerson(false);
+        WorldMenu.close();
         HandPreview.clear();
         super.removed();
     }

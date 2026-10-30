@@ -217,7 +217,7 @@ public final class VipPacks {
             Files.createDirectories(folder);
             String clean = s.name().replaceAll("[^A-Za-z0-9 ._()-]", "").trim();
             Path target = folder.resolve((clean.isEmpty() ? s.id() : clean) + ".zip");
-            if (!Files.exists(target)) {
+            if (!Files.exists(target) || StylesPackFilter.missingModels(zip, target, s.category())) {
                 if (StylesPackFilter.extract(zip, s.category(), target) == 0) {
                     status = "Nothing usable in this style";
                     return null;

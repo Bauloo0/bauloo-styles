@@ -34,7 +34,7 @@ public final class CrystalCore {
     }
 
     private static Path packDir() {
-        return FabricLoader.getInstance().getGameDir().resolve("resourcepacks").resolve(FOLDER);
+        return BaulooStylesClient.stylePacksDir().resolve(FOLDER);
     }
 
     public static boolean needsRebuild() {

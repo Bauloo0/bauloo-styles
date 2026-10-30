@@ -156,7 +156,7 @@ public final class StylesCloud {
     }
 
     private static Path packFile(Style s) {
-        return FabricLoader.getInstance().getGameDir().resolve("resourcepacks").resolve(s.folder() + ".zip");
+        return BaulooStylesClient.stylePacksDir().resolve(s.folder() + ".zip");
     }
 
     // ------------------------------------------------------------------ index
@@ -370,6 +370,62 @@ public final class StylesCloud {
                 } catch (IOException ignored) {
                 }
             }
+        }
+    }
+
+    /**
+     * The frames of a built-in animated cape (capes/<key>.zip). The zip must have exactly the size and SHA-256
+     * the mod expects; only the frame pictures (f00.jpg ... f99.jpg) are unpacked into folder.
+     */
+    static boolean fetchCape(String key, String sha256, long size, Path folder) {
+        Path temp = null;
+        try {
+            temp = Files.createTempFile("bauloo-cape-", ".zip");
+            final Path file = temp;
+            HttpResponse<Path> response = getFile("capes/" + key + ".zip", HttpResponse.BodyHandlers.ofFile(temp),
+                    Duration.ofMinutes(2), r -> r.statusCode() == 200 && sameFile(file, size, sha256));
+            if (response == null || response.statusCode() != 200 || !sameFile(temp, size, sha256)) {
+                BaulooStylesClient.LOGGER.warn("[Capes] {}: download failed (status {})", key,
+                        response == null ? "no connection" : response.statusCode());
+                return false;
+            }
+            Files.createDirectories(folder);
+            int kept = 0;
+            try (ZipInputStream in = new ZipInputStream(Files.newInputStream(temp))) {
+                ZipEntry entry;
+                while ((entry = in.getNextEntry()) != null) {
+                    String name = entry.getName();
+                    if (entry.isDirectory() || !name.matches("f[0-9]{2}\\.jpg")) {
+                        continue;
+                    }
+                    Files.copy(in, folder.resolve(name), StandardCopyOption.REPLACE_EXISTING);
+                    kept++;
+                }
+            }
+            if (kept == 0) {
+                BaulooStylesClient.LOGGER.warn("[Capes] {}: no frames in the download", key);
+                return false;
+            }
+            Files.writeString(folder.resolve("sha256"), sha256);
+            return true;
+        } catch (Exception e) {
+            BaulooStylesClient.LOGGER.warn("[Capes] {}: {}", key, e.toString());
+            return false;
+        } finally {
+            if (temp != null) {
+                try {
+                    Files.deleteIfExists(temp);
+                } catch (IOException ignored) {
+                }
+            }
+        }
+    }
+
+    private static boolean sameFile(Path file, long size, String sha256) {
+        try {
+            return Files.size(file) == size && sha256(file).equals(sha256);
+        } catch (Exception e) {
+            return false;
         }
     }
 

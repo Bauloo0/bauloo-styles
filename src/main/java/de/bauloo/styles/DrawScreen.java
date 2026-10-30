@@ -51,8 +51,10 @@ public class DrawScreen extends Screen {
     public static final String DRAWN = "drawn_";
     private static final String META =
             "{\"pack\": {\"description\": \"Drawn with Bauloo Styles\", \"pack_format\": 75, \"min_format\": 65, \"max_format\": 9999}}\n";
-    /** the six core faces of the crystal (vanilla 128x64 layout), all get the drawing */
-    private static final int[][] CORE = {{80, 0}, {96, 0}, {64, 16}, {80, 16}, {96, 16}, {112, 16}};
+    /** the six core faces of the crystal (vanilla 128x64 layout): front, right, back, left, top, bottom */
+    private static final int[][] CORE = {{80, 16}, {96, 16}, {112, 16}, {64, 16}, {96, 0}, {80, 0}};
+    private static final String[] CRYSTAL_SIDES = {"Front", "Right", "Back", "Left", "Top", "Bottom"};
+    private static final String[] ANCHOR_SIDES = {"Sides", "Top", "Bottom"};
 
     private enum Tool { PENCIL, ERASER, FILL, PICK }
 
@@ -66,6 +68,21 @@ public class DrawScreen extends Screen {
     private BufferedImage full;
     /** anchor: the five charge levels as 16x16, so the drawing keeps the charge marks */
     private final List<int[]> anchorSides = new ArrayList<>();
+    /**
+     * The sides you paint on their own: crystal 6 (front, right, back, left, top, bottom), anchor 3
+     * (sides, top, bottom), everything else 1. px is the side you paint right now; its slot here is
+     * only up to date after selectFace / snapshot.
+     */
+    private int[][] faces = {new int[256]};
+    private int[][] faceBases = {new int[256]};
+    private int face;
+    /** crystal: one drawing on every side of the core (like it always was) */
+    private boolean sameAll = true;
+    private boolean painting3d;
+    private final DrawPreview3D preview3d = new DrawPreview3D();
+    /** the 3D model fills the big area instead of the canvas */
+    private boolean big;
+    private boolean turning;
     private final ArrayDeque<int[]> undo = new ArrayDeque<>();
     private final ArrayDeque<int[]> redo = new ArrayDeque<>();
     private int color = 0xFF9B5CFF;
@@ -83,6 +100,10 @@ public class DrawScreen extends Screen {
     private int cell;
     private int barX;
     private int barW;
+    private int viewX;
+    private int viewY;
+    private int viewW;
+    private int viewH;
     private final List<Hit> hits = new ArrayList<>();
 
     private record Hit(int x, int y, int w, int h, Runnable action) {
@@ -146,6 +167,8 @@ public class DrawScreen extends Screen {
     private void load() {
         Target t = current();
         anchorSides.clear();
+        face = 0;
+        sameAll = true;
         BufferedImage img = read(t.texture());
         if (img == null) {
             message = "Could not load the " + t.label().toLowerCase(Locale.ROOT) + " texture";
@@ -165,15 +188,119 @@ public class DrawScreen extends Screen {
                 }
             }
         }
+        if (t.tab() == Tab.CRYSTAL && full != null) {
+            faceBases = new int[6][];
+            for (int i = 0; i < 6; i++) {
+                faceBases[i] = grid(full, CORE[i][0], CORE[i][1]);
+            }
+        } else if (t.tab() == Tab.ANCHOR) {
+            faceBases = new int[][]{base, block16("textures/block/respawn_anchor_top_off.png", base),
+                    block16("textures/block/respawn_anchor_bottom.png", base)};
+        } else {
+            faceBases = new int[][]{base};
+        }
+        faces = new int[faceBases.length][];
+        for (int i = 0; i < faces.length; i++) {
+            faces[i] = faceBases[i].clone();
+        }
         System.arraycopy(base, 0, px, 0, 256);
         undo.clear();
         redo.clear();
     }
 
+    /** A block texture as 16x16 (first frame), or the fallback when it can't be read. */
+    private static int[] block16(String path, int[] fallback) {
+        BufferedImage img = read(path);
+        if (img == null) {
+            return fallback.clone();
+        }
+        return grid(scaled(img.getSubimage(0, 0, img.getWidth(), Math.min(img.getHeight(), img.getWidth())), 16, 16), 0, 0);
+    }
+
+    /** The names of the sides you can pick, or none when there is just one. */
+    private String[] sideNames() {
+        return current().tab() == Tab.CRYSTAL ? CRYSTAL_SIDES : current().tab() == Tab.ANCHOR ? ANCHOR_SIDES : new String[0];
+    }
+
+    private int[] faceNow(int i) {
+        return i == face ? px : faces[i];
+    }
+
+    /** Paint another side from now on: the one you were on is kept, the new one goes onto the canvas. */
+    private void selectFace(int i) {
+        if (i == face || i < 0 || i >= faces.length) {
+            return;
+        }
+        faces[face] = px.clone();
+        face = i;
+        System.arraycopy(faces[i], 0, px, 0, 256);
+        base = faceBases[i];
+    }
+
+    /** crystal: back to one drawing for all sides (the side you are on) */
+    private void allSides() {
+        if (!sameAll) {
+            remember();
+            sameAll = true;
+        }
+    }
+
+    /** crystal: paint this side on its own; leaving "All" first gives every side the drawing you see now */
+    private void oneSide(int i) {
+        if (sameAll) {
+            remember();
+            sameAll = false;
+            for (int k = 0; k < faces.length; k++) {
+                faces[k] = px.clone();
+            }
+        }
+        selectFace(i);
+    }
+
+    // undo holds every side at once: [side, sameAll, side 0 pixels, side 1 pixels, ...]
+    private int[] snapshot() {
+        faces[face] = px.clone();
+        int[] out = new int[2 + faces.length * 256];
+        out[0] = face;
+        out[1] = sameAll ? 1 : 0;
+        for (int i = 0; i < faces.length; i++) {
+            System.arraycopy(faces[i], 0, out, 2 + i * 256, 256);
+        }
+        return out;
+    }
+
+    private void restore(int[] snap) {
+        if (snap.length != 2 + faces.length * 256) {
+            return;
+        }
+        face = snap[0];
+        sameAll = snap[1] == 1;
+        for (int i = 0; i < faces.length; i++) {
+            faces[i] = new int[256];
+            System.arraycopy(snap, 2 + i * 256, faces[i], 0, 256);
+        }
+        System.arraycopy(faces[face], 0, px, 0, 256);
+        base = faceBases[face];
+    }
+
+    private void undoStep() {
+        if (!undo.isEmpty()) {
+            redo.push(snapshot());
+            restore(undo.pop());
+        }
+    }
+
+    private void redoStep() {
+        if (!redo.isEmpty()) {
+            undo.push(snapshot());
+            restore(redo.pop());
+        }
+    }
+
     // ---------------------------------------------------------------- editing
 
     private void remember() {
-        undo.push(px.clone());
+        undo.push(snapshot());
         if (undo.size() > 60) {
             undo.removeLast();
         }
@@ -214,6 +341,38 @@ public class DrawScreen extends Screen {
         if (x < 0 || x > 15 || y < 0 || y > 15) {
             return;
         }
+        paintCell(x, y, start);
+    }
+
+    /** Paints on the 3D model: id is side * 256 + pixel, from DrawPreview3D.pickAt. */
+    private void paint3d(int id, boolean start) {
+        boolean oneDrawing = current().tab() == Tab.CRYSTAL && sameAll;
+        if (start) {
+            // remember first, then switch sides, so one undo takes back the whole stroke
+            if (tool != Tool.PICK) {
+                remember();
+            }
+            if (!oneDrawing) {
+                selectFace(id / 256);
+            }
+            paintCell(id % 16, id % 256 / 16, false, true);
+            return;
+        }
+        if (tool == Tool.FILL || tool == Tool.PICK) {
+            return;
+        }
+        if (!oneDrawing) {
+            selectFace(id / 256);
+        }
+        paintCell(id % 16, id % 256 / 16, false);
+    }
+
+    private void paintCell(int x, int y, boolean start) {
+        paintCell(x, y, start, start);
+    }
+
+    /** start: remember for undo; first: the first touch (fill and pick only work on that) */
+    private void paintCell(int x, int y, boolean start, boolean first) {
         if (tool == Tool.PICK) {
             if ((px[y * 16 + x] >>> 24) != 0) {
                 setColor(px[y * 16 + x]);
@@ -225,7 +384,7 @@ public class DrawScreen extends Screen {
             remember();
         }
         if (tool == Tool.FILL) {
-            if (start) {
+            if (first) {
                 fill(x, y);
             }
         } else {
@@ -292,24 +451,33 @@ public class DrawScreen extends Screen {
             if (t.tab() == Tab.CRYSTAL) {
                 BufferedImage sheet = new BufferedImage(128, 64, BufferedImage.TYPE_INT_ARGB);
                 sheet.getGraphics().drawImage(full, 0, 0, null);
-                for (int[] f : CORE) {
+                for (int k = 0; k < CORE.length; k++) {
+                    int[] g = sameAll ? px : faceNow(k);
                     for (int i = 0; i < 256; i++) {
-                        sheet.setRGB(f[0] + i % 16, f[1] + i / 16, px[i]);
+                        sheet.setRGB(CORE[k][0] + i % 16, CORE[k][1] + i / 16, g[i]);
                     }
                 }
                 files.put(dir + t.texture(), png(sheet));
             } else if (t.tab() == Tab.ANCHOR) {
                 // every charge level: the drawing, plus the pixels that show the charge in that level
-                int[] empty = anchorSides.isEmpty() ? base : anchorSides.get(0);
+                int[] sides = faceNow(0);
+                int[] empty = anchorSides.isEmpty() ? faceBases[0] : anchorSides.get(0);
                 for (int level = 0; level <= 4; level++) {
-                    int[] side = anchorSides.isEmpty() ? base : anchorSides.get(level);
-                    int[] out = px.clone();
+                    int[] side = anchorSides.isEmpty() ? faceBases[0] : anchorSides.get(level);
+                    int[] out = sides.clone();
                     for (int i = 0; i < 256; i++) {
                         if (side[i] != empty[i]) {
                             out[i] = side[i];
                         }
                     }
                     files.put(dir + "textures/block/respawn_anchor_side" + level + ".png", png(image16(out)));
+                }
+                // top and bottom only when you painted them
+                if (!java.util.Arrays.equals(faceNow(1), faceBases[1])) {
+                    files.put(dir + "textures/block/respawn_anchor_top_off.png", png(image16(faceNow(1))));
+                }
+                if (!java.util.Arrays.equals(faceNow(2), faceBases[2])) {
+                    files.put(dir + "textures/block/respawn_anchor_bottom.png", png(image16(faceNow(2))));
                 }
             } else {
                 files.put(dir + t.texture(), png(image16(px)));
@@ -328,7 +496,7 @@ public class DrawScreen extends Screen {
                 }
             }
             // the picture next to the zip is the preview in the menu
-            Files.write(folder.resolve(DRAWN + slug + ".png"), png(scaled(image16(px), 128, 128)));
+            Files.write(folder.resolve(DRAWN + slug + ".png"), png(scaled(image16(faceNow(0)), 128, 128)));
             StylesUploadManager.changed();
             StylesUploadManager.sync(t.tab().prefix);
             count = -1;
@@ -449,19 +617,9 @@ public class DrawScreen extends Screen {
         }
         button(ctx, tx, ty, tw, 18, "Mirror", mirror, false, mx, my, () -> mirror = !mirror);
         ty += 22;
-        button(ctx, tx, ty, tw, 18, "Undo", false, false, mx, my, () -> {
-            if (!undo.isEmpty()) {
-                redo.push(px.clone());
-                System.arraycopy(undo.pop(), 0, px, 0, 256);
-            }
-        });
+        button(ctx, tx, ty, tw, 18, "Undo", false, false, mx, my, this::undoStep);
         ty += 22;
-        button(ctx, tx, ty, tw, 18, "Redo", false, false, mx, my, () -> {
-            if (!redo.isEmpty()) {
-                undo.push(px.clone());
-                System.arraycopy(redo.pop(), 0, px, 0, 256);
-            }
-        });
+        button(ctx, tx, ty, tw, 18, "Redo", false, false, mx, my, this::redoStep);
 
         // canvas
         int sideW = Math.max(150, Math.min(220, (x1 - x0) / 3));
@@ -471,7 +629,7 @@ public class DrawScreen extends Screen {
         canvasX = tx + tw + 10;
         canvasY = top;
         box(ctx, canvasX - 3, canvasY - 3, size + 6, size + 6, c.base);
-        for (int y = 0; y < 16; y++) {
+        for (int y = 0; y < 16 && !big; y++) {
             for (int x = 0; x < 16; x++) {
                 int p = px[y * 16 + x];
                 int px0 = canvasX + x * cell;
@@ -486,16 +644,29 @@ public class DrawScreen extends Screen {
                 }
             }
         }
-        if (cell >= 8) {
+        if (big) {
+            viewX = canvasX;
+            viewY = canvasY;
+            viewW = size;
+            viewH = size;
+            int hover = in(mx, my, viewX, viewY, viewW, viewH) && !turning ? preview3d.pickAt(mx, my) : -1;
+            model(ctx, hover);
+            String hint = "Left: paint - Right drag: turn - Scroll: zoom";
+            if (textRenderer.getWidth(hint) > size - 8) {
+                hint = "L: paint - R: turn - Wheel: zoom";
+            }
+            ctx.drawText(textRenderer, textRenderer.trimToWidth(hint, size - 8), canvasX + 4, canvasY + size - 12, c.textDim, false);
+        }
+        if (cell >= 8 && !big) {
             for (int k = 1; k < 16; k++) {
                 ctx.fill(canvasX + k * cell, canvasY, canvasX + k * cell + 1, canvasY + size, 0x14FFFFFF);
                 ctx.fill(canvasX, canvasY + k * cell, canvasX + size, canvasY + k * cell + 1, 0x14FFFFFF);
             }
         }
-        if (mirror) {
+        if (mirror && !big) {
             ctx.fill(canvasX + size / 2, canvasY, canvasX + size / 2 + 1, canvasY + size, 0x88FFCF5A);
         }
-        if (in(mx, my, canvasX, canvasY, size, size)) {
+        if (!big && in(mx, my, canvasX, canvasY, size, size)) {
             int hx = canvasX + (mx - canvasX) / cell * cell;
             int hy = canvasY + (my - canvasY) / cell * cell;
             outline(ctx, hx - 1, hy - 1, cell + 2, cell + 2, c.gold);
@@ -538,20 +709,45 @@ public class DrawScreen extends Screen {
         }
 
         int prevY = sy + 98;
-        int prevH = Math.min(70, Math.max(40, bottom - prevY - 120));
+        String[] sides = sideNames();
+        if (sides.length > 0) {
+            prevY += sidePicker(ctx, sx, prevY, sw, sides, mx, my) + 6;
+        }
+        // on a small window only the header with BIG is left, so NAME and SAVE stay on screen
+        int prevH = Math.max(22, Math.min(sw + 20, bottom - prevY - 68));
         box(ctx, sx, prevY, sw, prevH, c.surface);
-        ctx.drawText(textRenderer, "PREVIEW", sx + 8, prevY + 7, c.textDim, false);
-        int pc = Math.max(1, (prevH - 22) / 16);
-        int pvx = sx + sw - 10 - pc * 16;
-        for (int i = 0; i < 256; i++) {
-            if ((px[i] >>> 24) != 0) {
-                int x = pvx + i % 16 * pc;
-                int y = prevY + 16 + i / 16 * pc;
-                ctx.fill(x, y, x + pc, y + pc, px[i]);
+        ctx.drawText(textRenderer, big ? "DRAWING" : "3D PREVIEW", sx + 8, prevY + 7, c.textDim, false);
+        button(ctx, sx + sw - 50, prevY + 4, 42, 14, big ? "SMALL" : "BIG", big, false, mx, my, () -> {
+            big = !big;
+            painting = false;
+            turning = false;
+        });
+        if (prevH < 40) {
+            if (!big) {
+                viewW = 0;
+                viewH = 0;
+            }
+        } else if (big) {
+            // the flat drawing, while the 3D model is big
+            int pc = Math.max(1, Math.min(sw - 16, prevH - 24) / 16);
+            int pvx = sx + (sw - pc * 16) / 2;
+            for (int i = 0; i < 256; i++) {
+                if ((px[i] >>> 24) != 0) {
+                    int x = pvx + i % 16 * pc;
+                    int y = prevY + 20 + i / 16 * pc;
+                    ctx.fill(x, y, x + pc, y + pc, px[i]);
+                }
+            }
+        } else {
+            viewX = sx + 4;
+            viewY = prevY + 18;
+            viewW = sw - 8;
+            viewH = prevH - 20;
+            model(ctx, -1);
+            if (in(mx, my, viewX, viewY, viewW, viewH) && !turning) {
+                ctx.drawText(textRenderer, "Drag / scroll", sx + 8, prevY + prevH - 11, c.textDim, false);
             }
         }
-        ctx.drawText(textRenderer, "Updates while", sx + 8, prevY + 22, c.textSoft, false);
-        ctx.drawText(textRenderer, "you draw", sx + 8, prevY + 32, c.textSoft, false);
 
         int ny = prevY + prevH + 6;
         box(ctx, sx, ny, sw, 62, c.surface);
@@ -567,7 +763,10 @@ public class DrawScreen extends Screen {
         int half = (sw - 20) / 2;
         button(ctx, sx + 8, ny + 40, half, 16, "START OVER", false, false, mx, my, () -> {
             remember();
-            System.arraycopy(base, 0, px, 0, 256);
+            for (int i = 0; i < faces.length; i++) {
+                faces[i] = faceBases[i].clone();
+            }
+            System.arraycopy(faceBases[face], 0, px, 0, 256);
         });
         button(ctx, sx + 12 + half, ny + 40, half, 16, "SAVE", false, true, mx, my, this::save);
 
@@ -611,7 +810,22 @@ public class DrawScreen extends Screen {
     public boolean mouseClicked(Click click, boolean doubled) {
         double mx = click.x();
         double my = click.y();
-        if (in(mx, my, canvasX, canvasY, cell * 16, cell * 16)) {
+        boolean onButton = hits.stream().anyMatch(h -> in(mx, my, h.x(), h.y(), h.w(), h.h()));
+        if (!onButton && in(mx, my, viewX, viewY, viewW, viewH)) {
+            nameFocused = false;
+            int id = big && click.button() == GLFW.GLFW_MOUSE_BUTTON_LEFT ? preview3d.pickAt(mx, my) : -1;
+            if (id >= 0) {
+                painting3d = true;
+                paint3d(id, true);
+                return true;
+            }
+            if (doubled) {
+                preview3d.reset();
+            }
+            turning = true;
+            return true;
+        }
+        if (!big && in(mx, my, canvasX, canvasY, cell * 16, cell * 16)) {
             nameFocused = false;
             if (click.button() == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
                 int x = (int) ((mx - canvasX) / cell);
@@ -652,6 +866,17 @@ public class DrawScreen extends Screen {
 
     @Override
     public boolean mouseDragged(Click click, double offsetX, double offsetY) {
+        if (turning) {
+            preview3d.drag(offsetX, offsetY);
+            return true;
+        }
+        if (painting3d) {
+            int id = preview3d.pickAt(click.x(), click.y());
+            if (id >= 0) {
+                paint3d(id, false);
+            }
+            return true;
+        }
         if (painting && tool != Tool.FILL && tool != Tool.PICK) {
             paintAt(click.x(), click.y(), false);
             return true;
@@ -666,8 +891,128 @@ public class DrawScreen extends Screen {
     @Override
     public boolean mouseReleased(Click click) {
         painting = false;
+        painting3d = false;
+        turning = false;
         dragBar = 0;
         return super.mouseReleased(click);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double horizontalAmount, double verticalAmount) {
+        if (in(mouseX, mouseY, viewX, viewY, viewW, viewH)) {
+            preview3d.scroll(verticalAmount);
+            return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+    }
+
+    /** The 3D model with every side as it is now. */
+    private void model(DrawContext ctx, int hover) {
+        Tab t = current().tab();
+        if (isItem()) {
+            preview3d.render(ctx, viewX, viewY, viewW, viewH, new int[][]{px}, new int[]{0}, true, hover);
+            return;
+        }
+        int[][] tex = new int[6][];
+        int[] ids = new int[6];
+        for (int i = 0; i < 6; i++) {
+            if (t == Tab.CRYSTAL && !sameAll) {
+                tex[i] = faceNow(i);
+                ids[i] = i;
+            } else if (t == Tab.ANCHOR) {
+                int f = i < 4 ? 0 : i - 3;
+                tex[i] = faceNow(f);
+                ids[i] = f;
+            } else {
+                tex[i] = px;
+                ids[i] = face;
+            }
+        }
+        preview3d.render(ctx, viewX, viewY, viewW, viewH, tex, ids, false, hover);
+    }
+
+    /** "SIDE YOU PAINT" with a chip per side (crystal: All first); returns its height. */
+    private int sidePicker(DrawContext ctx, int x, int y, int w, String[] sides, int mx, int my) {
+        StylesTheme c = StylesUiConfig.theme();
+        boolean crystal = current().tab() == Tab.CRYSTAL;
+        List<String> labels = new ArrayList<>();
+        if (crystal) {
+            labels.add("All");
+        }
+        labels.addAll(List.of(sides));
+        // lay the chips out in rows first, so the box gets the right height
+        int cx = x + 8;
+        int rows = 1;
+        for (String l : labels) {
+            int cw = textRenderer.getWidth(l) + 10;
+            if (cx + cw > x + w - 8) {
+                rows++;
+                cx = x + 8;
+            }
+            cx += cw + 3;
+        }
+        int h = 20 + rows * 17;
+        box(ctx, x, y, w, h, c.surface);
+        ctx.drawText(textRenderer, "SIDE YOU PAINT", x + 8, y + 7, c.textDim, false);
+        cx = x + 8;
+        int cy = y + 18;
+        for (int i = 0; i < labels.size(); i++) {
+            String l = labels.get(i);
+            int cw = textRenderer.getWidth(l) + 10;
+            if (cx + cw > x + w - 8) {
+                cx = x + 8;
+                cy += 17;
+            }
+            int side = crystal ? i - 1 : i;
+            boolean on = crystal ? (side < 0 ? sameAll : !sameAll && face == side) : face == side;
+            button(ctx, cx, cy, cw, 14, l, on, false, mx, my, () -> {
+                if (side < 0) {
+                    allSides();
+                } else if (crystal) {
+                    oneSide(side);
+                } else {
+                    selectFace(side);
+                }
+            });
+            cx += cw + 3;
+        }
+        return h;
+    }
+
+    /** Items are thin like in your hand, blocks and the crystal are cubes. */
+    private boolean isItem() {
+        Tab t = current().tab();
+        return t == Tab.TOTEM || t == Tab.PEARL || t == Tab.GAP || t == Tab.SWORD;
+    }
+
+    /** dev test only: show a target, small or big */
+    void testShow(int index, boolean bigView) {
+        if (index != target || full == null) {
+            target = index;
+            full = null;
+            load();
+        }
+        big = bigView;
+        if (bigView && current().tab() == Tab.ANCHOR) {
+            int keep = color;
+            color = 0xFFB45AFF;
+            for (int i = 0; i < 6; i++) {
+                paint3d(256 + (5 + i) * 16 + 5 + i, i == 0);
+            }
+            color = keep;
+        }
+        if (bigView && current().tab() == Tab.CRYSTAL) {
+            oneSide(0);
+            for (int i = 0; i < 16; i++) {
+                px[i * 16 + i] = 0xFFFF50C8;
+            }
+        }
+    }
+
+    @Override
+    public void removed() {
+        preview3d.close();
+        super.removed();
     }
 
     @Override
@@ -690,13 +1035,11 @@ public class DrawScreen extends Screen {
             }
         }
         if (ctrl && key == GLFW.GLFW_KEY_Z && !undo.isEmpty()) {
-            redo.push(px.clone());
-            System.arraycopy(undo.pop(), 0, px, 0, 256);
+            undoStep();
             return true;
         }
         if (ctrl && key == GLFW.GLFW_KEY_Y && !redo.isEmpty()) {
-            undo.push(px.clone());
-            System.arraycopy(redo.pop(), 0, px, 0, 256);
+            redoStep();
             return true;
         }
         return super.keyPressed(input);

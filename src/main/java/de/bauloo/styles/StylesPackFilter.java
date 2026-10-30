@@ -254,11 +254,131 @@ public final class StylesPackFilter {
         return found;
     }
 
+    /** The items of a category whose own models (3D crystals, 3D totems, ...) come along with the textures. */
+    private static String[] modelItems(String category) {
+        return switch (category) {
+            case "crystal" -> new String[]{"end_crystal"};
+            case "totem" -> new String[]{"totem_of_undying"};
+            case "gap" -> new String[]{"golden_apple", "enchanted_golden_apple"};
+            case "pearl" -> new String[]{"ender_pearl"};
+            case "sword", "pickaxe", "axe" -> java.util.Arrays.stream(
+                    new String[]{"wooden", "stone", "iron", "golden", "diamond", "netherite", "copper"})
+                    .map(m -> m + "_" + category).toArray(String[]::new);
+            default -> new String[0];
+        };
+    }
+
+    /**
+     * The model files of the category's items in this pack (items/x.json, models/item/x.json), plus every
+     * model they build on and every texture they use, as long as the pack has them. Without these a 3D
+     * crystal only got its picture and showed up broken.
+     */
+    private static Set<String> modelFiles(Path zip, String category) throws IOException {
+        String[] items = modelItems(category);
+        Set<String> found = new HashSet<>();
+        if (items.length == 0) {
+            return found;
+        }
+        // the pack's json files (small) and the names of everything else
+        Map<String, String> jsons = new java.util.HashMap<>();
+        Set<String> names = new HashSet<>();
+        try (ZipInputStream in = new ZipInputStream(Files.newInputStream(zip))) {
+            ZipEntry entry;
+            while ((entry = in.getNextEntry()) != null) {
+                if (entry.isDirectory()) {
+                    continue;
+                }
+                String name = entry.getName().replace('\\', '/');
+                names.add(name);
+                if (name.endsWith(".json") && name.startsWith("assets/") && entry.getSize() < 2_000_000) {
+                    jsons.put(name, new String(in.readNBytes(2_000_000), StandardCharsets.UTF_8));
+                }
+            }
+        }
+        java.util.ArrayDeque<String> todo = new java.util.ArrayDeque<>();
+        for (String item : items) {
+            todo.add("assets/minecraft/items/" + item + ".json");
+            todo.add("assets/minecraft/models/item/" + item + ".json");
+        }
+        while (!todo.isEmpty() && found.size() < 500) {
+            String file = todo.poll();
+            if (!names.contains(file) || !found.add(file) || !file.endsWith(".json")) {
+                continue;
+            }
+            try {
+                refs(com.google.gson.JsonParser.parseString(jsons.getOrDefault(file, "{}")), null, todo, names, found);
+            } catch (RuntimeException ignored) {
+                // a broken json: the file itself still comes along
+            }
+        }
+        return found;
+    }
+
+    /** Walks a model/item json: "model", "parent" and "base" point at models, anything under "textures" at textures. */
+    private static void refs(com.google.gson.JsonElement e, String key, java.util.ArrayDeque<String> todo,
+                             Set<String> names, Set<String> found) {
+        if (e.isJsonObject()) {
+            for (var kv : e.getAsJsonObject().entrySet()) {
+                refs(kv.getValue(), "textures".equals(key) ? "textures" : kv.getKey(), todo, names, found);
+            }
+        } else if (e.isJsonArray()) {
+            for (var x : e.getAsJsonArray()) {
+                refs(x, key, todo, names, found);
+            }
+        } else if (e.isJsonPrimitive() && e.getAsJsonPrimitive().isString() && key != null) {
+            String v = e.getAsString();
+            if (v.startsWith("#") || v.contains("..")) {
+                return;
+            }
+            String ns = v.contains(":") ? v.substring(0, v.indexOf(':')) : "minecraft";
+            String path = v.contains(":") ? v.substring(v.indexOf(':') + 1) : v;
+            if (key.equals("model") || key.equals("parent") || key.equals("base")) {
+                todo.add("assets/" + ns + "/models/" + path + ".json");
+            } else if (key.equals("textures")) {
+                String png = "assets/" + ns + "/textures/" + path + ".png";
+                if (names.contains(png)) {
+                    found.add(png);
+                    if (names.contains(png + ".mcmeta")) {
+                        found.add(png + ".mcmeta");
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * True when an earlier cut of this pack (from before models came along) lacks the item models the
+     * source has, so it has to be cut again.
+     */
+    public static boolean missingModels(Path source, Path cut, String category) {
+        if (modelItems(category).length == 0 || !Files.exists(cut)) {
+            return false;
+        }
+        try {
+            Set<String> models = modelFiles(source, category);
+            if (models.isEmpty()) {
+                return false;
+            }
+            try (ZipInputStream in = new ZipInputStream(Files.newInputStream(cut))) {
+                ZipEntry entry;
+                while ((entry = in.getNextEntry()) != null) {
+                    if (models.contains(entry.getName())) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
     /** Writes a small pack with only this category. Returns how many textures were kept. */
     public static int extract(Path zip, String category, Path destination) throws IOException {
         long unpacked = 0;
         int textures = 0;
         Set<String> written = new HashSet<>();
+        Set<String> models = modelFiles(zip, category);
         byte[] buffer = new byte[64 * 1024];
         Path temp = Files.createTempFile(destination.getParent(), "filter-", ".zip");
         try (ZipInputStream in = new ZipInputStream(Files.newInputStream(zip));
@@ -269,6 +389,9 @@ public final class StylesPackFilter {
                     continue;
                 }
                 String t = target(entry.getName(), category);
+                if (t == null && models.contains(entry.getName().replace('\\', '/'))) {
+                    t = entry.getName().replace('\\', '/');
+                }
                 if (t == null || !written.add(t.toLowerCase(Locale.ROOT))) {
                     continue;
                 }

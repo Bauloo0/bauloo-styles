@@ -31,7 +31,7 @@ import java.util.regex.Pattern;
  */
 public final class CloudCategories {
 
-    public static final int SLOTS = 8;
+    public static final int SLOTS = 12;
     private static final Pattern ID = Pattern.compile("^[a-z][a-z0-9]{1,15}$");
     private static final Pattern ICON = Pattern.compile("^[a-z0-9_.-]+:[a-z0-9_./-]+$");
     private static final Pattern PATH = Pattern.compile("^assets/[a-z0-9_./$-]+$");
@@ -53,10 +53,11 @@ public final class CloudCategories {
      * early: only for early access (VIP with the switch on) - shown and hidden right away when it flips.
      * admin: only for bauloo's admin key - these come from "adminCategories" in the index, which older
      * versions do not read, so nobody else ever sees them (and their styles are skipped there too).
+     * vip: an admin collection that VIP (and higher) keys see as well, before it goes out to everyone.
      */
     public record Def(String id, int slot, String name, String icon, List<Rule> rules, String detect,
                       String previewType, String previewTop, String previewSide, double[] crop, boolean early,
-                      boolean admin) {
+                      boolean admin, boolean vip) {
     }
 
     private static volatile List<Def> defs = List.of();
@@ -68,13 +69,14 @@ public final class CloudCategories {
         return defs;
     }
 
-    /** the collections this player sees: early ones only with early access on, admin ones only for bauloo */
+    /** the collections this player sees: early ones only with early access on, admin ones only for bauloo (vip ones for VIPs too) */
     public static List<Def> visible() {
         boolean early = VipPacks.earlyActive();
         boolean admin = VipPacks.admin();
+        boolean vip = VipPacks.shown();
         List<Def> out = new ArrayList<>();
         for (Def d : defs) {
-            if ((!d.early() || early) && (!d.admin() || admin)) {
+            if ((!d.early() || early) && (!d.admin() || admin || (d.vip() && vip))) {
                 out.add(d);
             }
         }
@@ -180,7 +182,8 @@ public final class CloudCategories {
             }
         }
         boolean early = o.has("early") && o.get("early").isJsonPrimitive() && o.get("early").getAsBoolean();
-        return new Def(id, slot, name.trim(), icon, List.copyOf(rules), detect, type, clean(top), clean(side), crop, early, admin);
+        boolean vip = admin && o.has("vip") && o.get("vip").isJsonPrimitive() && o.get("vip").getAsBoolean();
+        return new Def(id, slot, name.trim(), icon, List.copyOf(rules), detect, type, clean(top), clean(side), crop, early, admin, vip);
     }
 
     private static String clean(String path) {

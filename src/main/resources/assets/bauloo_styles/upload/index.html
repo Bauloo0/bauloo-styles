@@ -39,6 +39,17 @@
   .cat.has em { display: block; }
   .cat:hover { outline: 1px solid var(--soft); }
   .cat.on { outline: 2px solid var(--accent); background: #1a2230; }
+  /* "Whole pack" is the big one on top: the easiest way to bring a whole texture pack in */
+  .cat.whole { grid-column: 1 / -1; height: 96px; padding: 10px 18px 10px 10px; gap: 16px;
+               background: linear-gradient(100deg, #12324a 0%, #142638 45%, #111b26 100%); box-shadow: inset 0 0 0 1px #2a5a7a; }
+  .cat.whole:hover { background: linear-gradient(100deg, #164060 0%, #183048 45%, #142233 100%); }
+  .cat.whole.on { outline: 2px solid var(--accent); }
+  .cat.whole i { width: 76px; height: 76px; background-size: 120%; }
+  .cat.whole span { font-size: 20px; white-space: normal; padding-right: 140px; }
+  .cat.whole small { display: block; color: var(--soft); font-size: 13.5px; font-weight: 400; white-space: normal; margin-top: 2px; }
+  .cat.whole b { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); background: var(--accent); color: #07111b;
+                 font-size: 12px; font-weight: 700; letter-spacing: .06em; padding: 5px 11px; border-radius: 99px; }
+  .cat.whole em { right: 16px; top: 10px; }
 
   .drop { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 130px;
           border-radius: 10px; background: var(--surface); cursor: pointer; text-align: center; padding: 16px; transition: background .15s; }
@@ -93,7 +104,7 @@
     <h2><i>2</i>Drop your texture pack</h2>
     <label class="drop" id="drop">
       <strong>Drop a .zip here</strong>
-      <small>or click to choose - only the part you picked is kept</small>
+      <small>or click to choose - only the part you picked is kept (with Whole pack: every part)</small>
       <input type="file" id="packInput" accept=".zip">
     </label>
     <div class="bar" id="bar"><div></div></div>
@@ -184,6 +195,7 @@
   ];
   // the page shows them in these groups; collections from the cloud say nothing, so they are placed here
   const GROUPS = [
+    ["Whole texture pack", ["all"]],
     ["Crystal PvP", ["crystal", "anchor", "obsidian", "glowstone", "totem", "gap", "pearl"]],
     ["Gear", ["armor", "sword", "pickaxe", "axe", "shield", "mace"]],
     ["Blocks", ["stone", "deepslate", "snow", "cobweb"]],
@@ -223,6 +235,17 @@
     const next = g && [...box.children].find(x => g[1].indexOf(x.dataset.id) > g[1].indexOf(id));
     box.insertBefore(b, next || null);
   }
+  // "Whole pack": every part of the pack goes into its own collection in one go - big, first, easy to find
+  addCat("all", "Whole pack", "category_cloud");
+  (() => {
+    const w = $("cats").querySelector('.cat[data-id="all"]');
+    w.classList.add("whole");
+    const text = w.querySelector("span");
+    text.innerHTML = "Whole pack<small>Drop a full texture pack - every part (crystals, totems, armor, sky ...) goes into its own collection at once</small>";
+    const badge = document.createElement("b");
+    badge.textContent = "ALL AT ONCE";
+    w.append(badge);
+  })();
   for (const [id, label, img] of CATS) addCat(id, label, img);
   function pick(id) {
     category = id;
@@ -236,13 +259,16 @@
   function autoPicture() {
     if (!upload || customPicture) return;
     const p = $("pic");
+    if (category === "all") { p.classList.remove("set"); p.style.backgroundImage = ""; p.title = ""; return; }
     const useAuto = (upload.auto || []).includes(category);
     if (!useAuto && !upload.icon) { p.classList.remove("set"); p.style.backgroundImage = ""; p.title = ""; return; }
     p.classList.add("set");
     p.title = useAuto ? "Drawn from this pack" : "Taken from the pack icon";
     p.style.backgroundImage = `url("${q("/api/icon?id=" + upload.id + "&category=" + category + "&v=" + Date.now())}")`;
   }
-  const label = (id) => CATS.find(c => c[0] === id)[1];
+  const label = (id) => id === "all" ? "Whole pack" : CATS.find(c => c[0] === id)[1];
+  // the parts of the dropped pack the mod can use, as [id, name, count]
+  const parts = () => CATS.filter(c => (upload.found[c[0]] || 0) > 0).map(c => [c[0], c[1], upload.found[c[0]]]);
 
   // step 2
   const drop = $("drop");
@@ -270,6 +296,12 @@
         c.classList.toggle("has", n > 0);
         c.querySelector("em").textContent = n;
       });
+      const whole = $("cats").querySelector('.cat[data-id="all"]');
+      if (whole) {
+        const count = parts().length;
+        whole.classList.toggle("has", count > 0);
+        whole.querySelector("em").textContent = count ? count + " parts" : "";
+      }
       $("name").value = r.name;
       resetPicture();
       autoPicture();
@@ -280,6 +312,22 @@
   }
 
   function showFound() {
+    if (category === "all") {
+      const list = parts();
+      $("add").textContent = list.length > 1 ? `Add all ${list.length}` : "Add to my styles";
+      $("publish").textContent = list.length > 1 ? `Publish all ${list.length}` : "Publish for everyone";
+      if (list.length) {
+        note("found", `Found ${list.length} part${list.length === 1 ? "" : "s"}: ` + list.map(p => `${p[1]} (${p[2]})`).join(", ")
+            + ". Each one goes into its own collection.", "good");
+        $("step3").classList.remove("off");
+      } else {
+        note("found", "This pack has nothing Bauloo Styles can use.", "bad");
+        $("step3").classList.add("off");
+      }
+      return;
+    }
+    $("add").textContent = "Add to my styles";
+    $("publish").textContent = "Publish for everyone";
     const n = upload.found[category] || 0;
     const el = $("found");
     if (n > 0) {
@@ -315,9 +363,34 @@
       });
   };
 
+  /** Whole pack: one request per part, one after the other, then one summary. */
+  async function submitAll(publish, name) {
+    const btn = publish ? $("publish") : $("add");
+    btn.disabled = true;
+    $("output").hidden = true;
+    const list = parts(), done = [], failed = [];
+    for (const [id, cat] of list) {
+      note("result", `${publish ? "Publishing" : "Adding"} ${cat} (${done.length + failed.length + 1}/${list.length}) ...`);
+      try {
+        const r = await fetch(q(publish ? "/api/publish" : "/api/add"), {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: upload.id, category: id, name })
+        }).then(x => x.json());
+        (r.ok ? done : failed).push(r.ok ? cat : `${cat}: ${r.message}`);
+      } catch { failed.push(`${cat}: no answer`); }
+    }
+    btn.disabled = false;
+    const text = (done.length ? `${publish ? "Published" : "Added"} ${done.length}: ${done.join(", ")}.` : "")
+        + (failed.length ? ` Not added: ${failed.join("; ")}.` : "")
+        + (done.length && !publish ? " Open the styles menu in game." : "");
+    note("result", text.trim(), failed.length && !done.length ? "bad" : "good");
+    loadState();
+  }
+
   function submit(publish) {
     const name = $("name").value.trim();
     if (!name) { note("result", "Give the style a name.", "bad"); return; }
+    if (category === "all") { submitAll(publish, name); return; }
     const btn = publish ? $("publish") : $("add");
     btn.disabled = true;
     note("result", publish ? "Publishing for everyone ..." : "Adding ...");

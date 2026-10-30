@@ -50,6 +50,31 @@ public final class StylesUiConfig {
     public static int crystalSpin = 100;
     /** Size of the totem that pops up on screen when one is used, in percent. */
     public static int totemPopSize = 100;
+    /** Totem Pop switch: off = the vanilla cloud, the settings below stay saved */
+    public static boolean totemPart = true;
+    /** Sky effects (Extras): each one on its own */
+    public static boolean skyShooting = true;
+    /** Server Packs (Extras): styles above a server resource pack, and the banner when one covers them */
+    public static boolean stylesOverServer = true;
+    public static boolean serverPackWarning = true;
+    public static boolean skyShower = false;
+    public static boolean skyAurora = false;
+    public static boolean skyMilky = false;
+    public static boolean skyTwinkle = false;
+    public static boolean skyComet = false;
+    public static boolean skyConstellations = false;
+    public static boolean skyBlood = false;
+    /** Totem Pop: the particle cloud when a totem pops. 0 = vanilla glitter, 1 = pixel plus signs */
+    public static int totemPartStyle = 0;
+    /** how many particles: 0 off, 1 less (25%), 2 mid (50%), 3 normal */
+    public static int totemPartAmount = 3;
+    /** particle size in percent */
+    public static int totemPartSize = 100;
+    public static boolean totemPartCustom = false;
+    public static int totemPartColor = 0x6CFF8A;
+    public static boolean totemPartRainbow = false;
+    /** the cloud vanishes about twice as fast */
+    public static boolean totemPartShort = false;
     /** Hitbox (F3+B) outline in its own colour instead of white. */
     public static boolean hitboxCustom = false;
     public static int hitboxColor = 0xB388FF;
@@ -60,6 +85,9 @@ public final class StylesUiConfig {
     public static boolean blockOutlineCustom = false;
     /** Kill Effect: off, lightning, sparks, blood, souls, totem. */
     public static String killEffect = "off";
+    /** what plays where your mace smash lands (MaceEffect), "off" = nothing */
+    public static String maceEffect = "off";
+    public static int maceColor = 0xFF8A2A;
     public static boolean killOnlyMine = true;
     /** a short sound when you get a kill */
     public static boolean killSound = false;
@@ -138,6 +166,12 @@ public final class StylesUiConfig {
     public static int cobwebOutlineWidth = 2;
     /** tab icon: tell others (tornado in tab) that you play with Bauloo Styles */
     public static boolean showInTab = true;
+    /** the first-time tour of the menu was seen (or skipped) */
+    public static boolean tourSeen;
+    /** Halloween 2026: the Halloween menu theme was switched on once for everyone (they can switch back) */
+    public static boolean halloween2026;
+    /** "World" menu theme: you from the front, the menu on the right, two blocks of the collection beside you */
+    public static boolean worldMenu;
     /** the new version the update popup was already answered for, so it asks once per version */
     public static String updateSeen = "";
     /** the Bauloo Styles version that last ran on this PC (for "What's new") */
@@ -149,6 +183,7 @@ public final class StylesUiConfig {
     public static String cosCape = "none";
     public static String cosHead = "none";
     public static String cosAura = "none";
+    public static String cosPet = "none";
     public static int cosColor = 0xB388FF;
     public static boolean cosRainbow = false;
     public static boolean cosCapeElytra = true;
@@ -177,8 +212,8 @@ public final class StylesUiConfig {
      */
     private static final Set<String> MENU_KEYS = Set.of("accent", "background", "opacity", "glow", "brackets",
             "hints", "themesTab", "favorites", "presetExtras", "presetBackup",
-            "spotifyX", "spotifyY", "spotifyScale", "earlyAccess", "timeOverride", "updateSeen", "lastVersion", "invClearBackground", "showInTab",
-            "cosCape", "cosHead", "cosAura", "cosColor", "cosRainbow", "cosCapeElytra", "cosCapeTint",
+            "spotifyX", "spotifyY", "spotifyScale", "earlyAccess", "timeOverride", "updateSeen", "lastVersion", "invClearBackground", "showInTab", "tourSeen", "halloween2026", "worldMenu",
+            "cosCape", "cosHead", "cosAura", "cosPet", "cosColor", "cosRainbow", "cosCapeElytra", "cosCapeTint",
             // how big the totem pops is your own feel: most presets only carry the default 100
             "totemPopSize");
 
@@ -243,6 +278,30 @@ public final class StylesUiConfig {
             return;
         }
         loaded = true;
+        loadFile();
+        halloweenOnce();
+    }
+
+    /** Around Halloween 2026 everyone gets the Halloween menu theme once; picking another theme after that sticks. */
+    private static void halloweenOnce() {
+        if (halloween2026) {
+            return;
+        }
+        java.time.LocalDate today = java.time.LocalDate.now();
+        if (today.isBefore(java.time.LocalDate.of(2026, 10, 25)) || today.isAfter(java.time.LocalDate.of(2026, 11, 3))) {
+            return;
+        }
+        halloween2026 = true;
+        for (StylesTheme.Preset preset : StylesTheme.PRESETS) {
+            if (preset.background() == StylesTheme.Background.HALLOWEEN) {
+                accent = preset.accent();
+                background = preset.background();
+            }
+        }
+        save();
+    }
+
+    private static void loadFile() {
         Path f = file();
         if (!Files.exists(f)) {
             return;
@@ -321,10 +380,41 @@ public final class StylesUiConfig {
         } catch (NumberFormatException ignored) {
             totemPopSize = 100;
         }
+        totemPart = Boolean.parseBoolean(p.getProperty("totemPart", "true"));
+        skyShooting = Boolean.parseBoolean(p.getProperty("skyShooting", "true"));
+        stylesOverServer = Boolean.parseBoolean(p.getProperty("stylesOverServer", "true"));
+        serverPackWarning = Boolean.parseBoolean(p.getProperty("serverPackWarning", "true"));
+        skyShower = Boolean.parseBoolean(p.getProperty("skyShower", "false"));
+        skyAurora = Boolean.parseBoolean(p.getProperty("skyAurora", "false"));
+        skyMilky = Boolean.parseBoolean(p.getProperty("skyMilky", "false"));
+        skyTwinkle = Boolean.parseBoolean(p.getProperty("skyTwinkle", "false"));
+        skyComet = Boolean.parseBoolean(p.getProperty("skyComet", "false"));
+        skyConstellations = Boolean.parseBoolean(p.getProperty("skyConstellations", "false"));
+        skyBlood = Boolean.parseBoolean(p.getProperty("skyBlood", "false"));
+        totemPartCustom = Boolean.parseBoolean(p.getProperty("totemPartCustom", "false"));
+        totemPartRainbow = Boolean.parseBoolean(p.getProperty("totemPartRainbow", "false"));
+        totemPartShort = Boolean.parseBoolean(p.getProperty("totemPartShort", "false"));
+        try {
+            totemPartStyle = Math.max(0, Math.min(1, Integer.parseInt(p.getProperty("totemPartStyle", "0"))));
+            totemPartAmount = Math.max(0, Math.min(3, Integer.parseInt(p.getProperty("totemPartAmount", "3"))));
+            totemPartSize = Math.max(50, Math.min(200, Integer.parseInt(p.getProperty("totemPartSize", "100"))));
+            totemPartColor = Integer.parseInt(p.getProperty("totemPartColor", "6CFF8A"), 16) & 0xFFFFFF;
+        } catch (NumberFormatException ignored) {
+            totemPartStyle = 0;
+            totemPartAmount = 3;
+            totemPartSize = 100;
+            totemPartColor = 0x6CFF8A;
+        }
         hitboxCustom = Boolean.parseBoolean(p.getProperty("hitboxCustom", "false"));
         crosshairCustom = Boolean.parseBoolean(p.getProperty("crosshairCustom", "false"));
         blockOutlineCustom = Boolean.parseBoolean(p.getProperty("blockOutlineCustom", "false"));
         killEffect = p.getProperty("killEffect", "off");
+        maceEffect = p.getProperty("maceEffect", "off");
+        try {
+            maceColor = Integer.parseInt(p.getProperty("maceColor", "FF8A2A"), 16) & 0xFFFFFF;
+        } catch (NumberFormatException e) {
+            maceColor = 0xFF8A2A;
+        }
         if ("shatter".equals(killEffect)) {
             killEffect = "off"; // Shatter was removed (it crashed some games)
         }
@@ -447,9 +537,13 @@ public final class StylesUiConfig {
             cobwebOutlineWidth = 2;
         }
         showInTab = Boolean.parseBoolean(p.getProperty("showInTab", "true"));
+        tourSeen = Boolean.parseBoolean(p.getProperty("tourSeen", "false"));
+        halloween2026 = Boolean.parseBoolean(p.getProperty("halloween2026", "false"));
+        worldMenu = Boolean.parseBoolean(p.getProperty("worldMenu", "false"));
         cosCape = p.getProperty("cosCape", "none");
         cosHead = p.getProperty("cosHead", "none");
         cosAura = p.getProperty("cosAura", "none");
+        cosPet = p.getProperty("cosPet", "none");
         cosRainbow = Boolean.parseBoolean(p.getProperty("cosRainbow", "false"));
         cosCapeElytra = Boolean.parseBoolean(p.getProperty("cosCapeElytra", "true"));
         cosCapeTint = Boolean.parseBoolean(p.getProperty("cosCapeTint", "false"));
@@ -628,11 +722,31 @@ public final class StylesUiConfig {
         p.setProperty("gapSize", String.valueOf(gapSize));
         p.setProperty("crystalSpin", String.valueOf(crystalSpin));
         p.setProperty("totemPopSize", String.valueOf(totemPopSize));
+        p.setProperty("totemPart", String.valueOf(totemPart));
+        p.setProperty("skyShooting", String.valueOf(skyShooting));
+        p.setProperty("stylesOverServer", String.valueOf(stylesOverServer));
+        p.setProperty("serverPackWarning", String.valueOf(serverPackWarning));
+        p.setProperty("skyShower", String.valueOf(skyShower));
+        p.setProperty("skyAurora", String.valueOf(skyAurora));
+        p.setProperty("skyMilky", String.valueOf(skyMilky));
+        p.setProperty("skyTwinkle", String.valueOf(skyTwinkle));
+        p.setProperty("skyComet", String.valueOf(skyComet));
+        p.setProperty("skyConstellations", String.valueOf(skyConstellations));
+        p.setProperty("skyBlood", String.valueOf(skyBlood));
+        p.setProperty("totemPartStyle", String.valueOf(totemPartStyle));
+        p.setProperty("totemPartAmount", String.valueOf(totemPartAmount));
+        p.setProperty("totemPartSize", String.valueOf(totemPartSize));
+        p.setProperty("totemPartCustom", String.valueOf(totemPartCustom));
+        p.setProperty("totemPartColor", String.format("%06X", totemPartColor & 0xFFFFFF));
+        p.setProperty("totemPartRainbow", String.valueOf(totemPartRainbow));
+        p.setProperty("totemPartShort", String.valueOf(totemPartShort));
         p.setProperty("hitboxCustom", String.valueOf(hitboxCustom));
         p.setProperty("hitboxColor", String.format("%06X", hitboxColor & 0xFFFFFF));
         p.setProperty("crosshairCustom", String.valueOf(crosshairCustom));
         p.setProperty("blockOutlineCustom", String.valueOf(blockOutlineCustom));
         p.setProperty("killEffect", killEffect);
+        p.setProperty("maceEffect", maceEffect);
+        p.setProperty("maceColor", String.format("%06X", maceColor & 0xFFFFFF));
         p.setProperty("killOnlyMine", String.valueOf(killOnlyMine));
         p.setProperty("killSound", String.valueOf(killSound));
         p.setProperty("killVolume", String.valueOf(killVolume));
@@ -684,9 +798,13 @@ public final class StylesUiConfig {
         p.setProperty("timeOverride", String.valueOf(timeOverride));
         p.setProperty("cobwebOutlineQuarters", String.valueOf(cobwebOutlineWidth));
         p.setProperty("showInTab", String.valueOf(showInTab));
+        p.setProperty("tourSeen", String.valueOf(tourSeen));
+        p.setProperty("halloween2026", String.valueOf(halloween2026));
+        p.setProperty("worldMenu", String.valueOf(worldMenu));
         p.setProperty("cosCape", cosCape);
         p.setProperty("cosHead", cosHead);
         p.setProperty("cosAura", cosAura);
+        p.setProperty("cosPet", cosPet);
         p.setProperty("cosColor", String.format("%06X", cosColor & 0xFFFFFF));
         p.setProperty("cosRainbow", String.valueOf(cosRainbow));
         p.setProperty("cosCapeElytra", String.valueOf(cosCapeElytra));

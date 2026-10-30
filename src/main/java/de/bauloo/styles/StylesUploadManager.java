@@ -207,7 +207,7 @@ public final class StylesUploadManager {
             boolean removed = Files.deleteIfExists(zip);
             Files.deleteIfExists(folder.resolve(fileName.replaceFirst("\\.zip$", "") + ".png"));
             try {
-                Files.deleteIfExists(FabricLoader.getInstance().getGameDir().resolve("resourcepacks").resolve(id + ".zip"));
+                Files.deleteIfExists(BaulooStylesClient.stylePacksDir().resolve(id + ".zip"));
             } catch (IOException ignored) {
                 // still loaded by the game - it disappears with the next restart
             }
@@ -221,7 +221,7 @@ public final class StylesUploadManager {
     /** Mirrors uploads into Minecraft's normal pack directory so ResourcePackManager can load them. */
     public static List<String[]> sync(String category) {
         List<String[]> result = new java.util.ArrayList<>();
-        Path targetRoot = FabricLoader.getInstance().getGameDir().resolve("resourcepacks");
+        Path targetRoot = BaulooStylesClient.stylePacksDir();
         try {
             Files.createDirectories(targetRoot);
         } catch (IOException e) {

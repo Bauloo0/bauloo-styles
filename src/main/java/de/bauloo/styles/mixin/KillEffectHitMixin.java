@@ -16,5 +16,6 @@ public class KillEffectHitMixin {
 	@Inject(method = "attackEntity", at = @At("HEAD"))
 	private void baulooStyles$hit(PlayerEntity player, Entity target, CallbackInfo ci) {
 		KillEffect.onAttack(target);
+		de.bauloo.styles.MaceEffect.onAttack(target);
 	}
 }
